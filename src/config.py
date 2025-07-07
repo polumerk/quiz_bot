@@ -10,10 +10,7 @@ class Config:
     """Configuration class with environment variable support"""
     
     # Telegram Bot Configuration
-    TELEGRAM_TOKEN: str = os.getenv(
-        'TELEGRAM_TOKEN', 
-        '8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg'
-    )
+    TELEGRAM_TOKEN: str = os.getenv('TELEGRAM_TOKEN', '')
     
     # OpenAI Configuration
     OPENAI_API_KEY: Optional[str] = None
@@ -46,11 +43,17 @@ class Config:
     
     @classmethod
     def load_openai_key(cls) -> str:
-        """Load OpenAI API key from file or environment"""
+        """Load OpenAI API key from environment or file (for backward compatibility)"""
         if cls.OPENAI_API_KEY:
             return cls.OPENAI_API_KEY
             
-        # Try to load from file
+        # Try environment variable first (secure)
+        key = os.getenv('OPENAI_API_KEY')
+        if key:
+            cls.OPENAI_API_KEY = key
+            return key
+        
+        # Fallback to file (for backward compatibility)
         try:
             with open('openai_key.txt', 'r', encoding='utf-8') as f:
                 key = f.read().strip()
@@ -58,18 +61,13 @@ class Config:
                 return key
         except FileNotFoundError:
             pass
-        
-        # Try environment variable
-        key = os.getenv('OPENAI_API_KEY')
-        if key:
-            cls.OPENAI_API_KEY = key
-            return key
             
         raise ValueError(
-            "OpenAI API key not found. Please provide it via:\n"
-            "1. openai_key.txt file\n"
-            "2. OPENAI_API_KEY environment variable\n"
-            "3. Config.OPENAI_API_KEY class attribute"
+            "❌ OpenAI API key not found! Please set it in Replit Secrets:\n"
+            "1. 🔒 Open Secrets tab in Replit\n"
+            "2. ➕ Add new secret: OPENAI_API_KEY = your_openai_key\n"
+            "3. 🔄 Restart the bot\n\n"
+            "Alternative: create openai_key.txt file (less secure)"
         )
     
     @classmethod

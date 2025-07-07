@@ -2,6 +2,7 @@ import json
 import re
 import aiohttp
 import random
+import os
 from typing import Any, Dict, List
 from db import get_questions_history, add_question_to_history
 
@@ -33,16 +34,21 @@ SYSTEM_PROMPT_CHECK = (
 )
 
 async def openai_generate_questions(theme: str, round_num: int, chat_id: int, get_difficulty, get_questions_per_round) -> List[Any]:
-    try:
-        with open('openai_key.txt', 'r', encoding='utf-8') as f:
-            OPENAI_KEY = f.read().strip()
-    except FileNotFoundError:
-        print('[LOG] OpenAI API key file not found')
-        return [{"question": "Ошибка: файл openai_key.txt не найден", "answer": "N/A", "difficulty": "medium"}]
+    # Try to get OpenAI key from environment variable first, then from file (for backward compatibility)
+    OPENAI_KEY = os.getenv('OPENAI_API_KEY')
+    
+    if not OPENAI_KEY:
+        # Fallback to file (for backward compatibility)
+        try:
+            with open('openai_key.txt', 'r', encoding='utf-8') as f:
+                OPENAI_KEY = f.read().strip()
+        except FileNotFoundError:
+            print('[LOG] OpenAI API key not found in environment variable OPENAI_API_KEY or openai_key.txt file')
+            return [{"question": "❌ OpenAI API ключ не настроен. Добавьте переменную OPENAI_API_KEY в Replit Secrets", "answer": "N/A", "difficulty": "medium"}]
     
     if not OPENAI_KEY or not OPENAI_KEY.startswith('sk-'):
         print('[LOG] Invalid OpenAI API key')
-        return [{"question": "Ошибка: неверный OpenAI API ключ", "answer": "N/A", "difficulty": "medium"}]
+        return [{"question": "❌ Неверный OpenAI API ключ. Проверьте переменную OPENAI_API_KEY", "answer": "N/A", "difficulty": "medium"}]
     history_questions = get_questions_history(theme, limit=50)
     history_text = ''
     if history_questions:
@@ -169,8 +175,16 @@ async def openai_check_answers(theme: str, questions: List[str], answers: List[s
         "Без обёртки, без дополнительных ключей, без текста до и после массива."
     )
     qa_pairs = [{"question": q, "answer": a} for q, a in zip(questions, answers)]
-    with open('openai_key.txt', 'r', encoding='utf-8') as f:
-        OPENAI_KEY = f.read().strip()
+    
+    # Get OpenAI key from environment variable or file
+    OPENAI_KEY = os.getenv('OPENAI_API_KEY')
+    if not OPENAI_KEY:
+        try:
+            with open('openai_key.txt', 'r', encoding='utf-8') as f:
+                OPENAI_KEY = f.read().strip()
+        except FileNotFoundError:
+            print('[LOG] OpenAI API key not found for check_answers')
+            return []
     headers = {
         'Authorization': f'Bearer {OPENAI_KEY}',
         'Content-Type': 'application/json',

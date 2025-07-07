@@ -166,6 +166,17 @@ async def run_bot() -> None:
         logging.error(f"Database initialization failed: {e}")
         sys.exit(1)
     
+    # Validate Telegram token
+    if not config.TELEGRAM_TOKEN:
+        logging.error(
+            "❌ Telegram Bot Token not found! Please set it in Replit Secrets:\n"
+            "1. 🔒 Open Secrets tab in Replit\n"
+            "2. ➕ Add new secret: TELEGRAM_TOKEN = your_bot_token\n"
+            "3. 🔄 Restart the bot\n\n"
+            "Get token from @BotFather in Telegram"
+        )
+        sys.exit(1)
+    
     # Validate OpenAI key
     try:
         config.load_openai_key()
@@ -181,6 +192,7 @@ async def run_bot() -> None:
         logging.info("Telegram application created successfully")
     except Exception as e:
         logging.error(f"Failed to create Telegram application: {e}")
+        logging.error("Check if TELEGRAM_TOKEN is valid (get it from @BotFather)")
         sys.exit(1)
     
     # Register handlers
