@@ -492,34 +492,32 @@ async def time_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 @safe_async_call("join_callback")
 async def join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle participant joining"""
+    """Handle participant joining (LEGACY - unified handlers preferred)"""
     if not update.callback_query or not update.callback_query.message:
         return
         
     query = update.callback_query
-    await query.answer()
+    await query.answer("Используйте новое меню настроек (/start)")
     
+    # Redirect to unified system
     chat_id = ChatID(query.message.chat.id)
-    user_id = UserID(query.from_user.id)
-    username = query.from_user.first_name or query.from_user.username or 'Неизвестный'
-    
-    game_state = get_game_state(chat_id)
-    game_state.add_participant(user_id, username)
-    
-    await _send_registration_message(context, chat_id)
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
 
 
 @safe_async_call("end_registration_callback")
 async def end_registration_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle end registration"""
+    """Handle end registration (LEGACY - unified handlers preferred)"""
     if not update.callback_query or not update.callback_query.message:
         return
         
     query = update.callback_query
-    await query.answer()
+    await query.answer("Используйте новое меню настроек (/start)")
     
+    # Redirect to unified system
     chat_id = ChatID(query.message.chat.id)
-    await _end_registration(context, chat_id)
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
 
 
 @safe_async_call("captain_callback")
@@ -703,14 +701,58 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
             game_state.service_messages.append(MessageID(theme_msg.message_id))
             return
         elif data == 'unified_start':
-            # Start game
+            # Switch to registration mode
             if not game_state.settings or not game_state.settings.theme:
                 await context.bot.send_message(
                     chat_id, 
                     '❌ Пожалуйста, сначала задайте тему для вопросов.'
                 )
                 return
-            await _send_registration_message(context, chat_id)
+            
+            # Switch to registration mode and update same message
+            game_state.in_registration_mode = True
+            await _edit_unified_settings_message(context, chat_id, query.message.message_id)
+            return
+            
+        elif data == 'unified_join':
+            # Join the game (add participant)
+            user_id = UserID(query.from_user.id)
+            username = query.from_user.first_name or query.from_user.username or 'Неизвестный'
+            
+            # Check if already joined
+            if any(p.user_id == user_id for p in game_state.participants):
+                await context.bot.answer_callback_query(
+                    query.id, 
+                    "Вы уже зарегистрированы!", 
+                    show_alert=True
+                )
+                return
+            
+            # Add participant and update message
+            game_state.add_participant(user_id, username)
+            await _edit_unified_settings_message(context, chat_id, query.message.message_id)
+            return
+            
+        elif data == 'unified_end_registration':
+            # End registration and start game
+            participants = game_state.participants
+            if len(participants) < 1:
+                await context.bot.answer_callback_query(
+                    query.id,
+                    "Нужен минимум 1 участник для начала игры!",
+                    show_alert=True
+                )
+                return
+            
+            # Start the game
+            from ..game.logic import start_round
+            await start_round(context, chat_id)
+            return
+            
+        elif data == 'unified_back_to_settings':
+            # Go back to settings mode
+            game_state.in_registration_mode = False
+            await _edit_unified_settings_message(context, chat_id, query.message.message_id)
             return
         return
     
@@ -758,7 +800,7 @@ async def _edit_unified_settings_message(
     chat_id: ChatID, 
     message_id: int
 ) -> None:
-    """Edit existing unified settings message"""
+    """Edit existing unified settings message (with optional registration)"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     import lang
     
@@ -784,51 +826,75 @@ async def _edit_unified_settings_message(
 🔄 **Раундов:** {settings.rounds}
 ❓ **Вопросов в раунде:** {settings.questions_per_round}
 ⏰ **Время на вопрос:** {settings.time_per_question} сек
-📚 **Тема:** {theme_text}
+📚 **Тема:** {theme_text}"""
 
-**Режим игры:**"""
+    # Add registration section if in registration mode
+    if game_state.in_registration_mode:
+        participants = game_state.participants
+        text += f"\n\n🎮 **Регистрация участников**\n\n"
+        text += f"**Участники ({len(participants)}):**\n"
+        if participants:
+            for participant in participants:
+                text += f"• {participant.username}\n"
+        else:
+            text += "_Пока никого нет_\n"
+    else:
+        text += "\n\n**Настройки игры:**"
     
-    # Create inline keyboard with all settings in one message
-    keyboard = [
-        # Mode selection
-        [
-            InlineKeyboardButton('👥 Командный', callback_data='unified_mode_team'),
-            InlineKeyboardButton('👤 Индивидуальный', callback_data='unified_mode_individual')
-        ],
-        # Difficulty selection  
-        [
-            InlineKeyboardButton('🟢 Легкий', callback_data='unified_difficulty_easy'),
-            InlineKeyboardButton('🟡 Средний', callback_data='unified_difficulty_medium'),
-            InlineKeyboardButton('🔴 Сложный', callback_data='unified_difficulty_hard')
-        ],
-        # Rounds
-        [
-            InlineKeyboardButton('1️⃣', callback_data='unified_rounds_1'),
-            InlineKeyboardButton('2️⃣', callback_data='unified_rounds_2'),
-            InlineKeyboardButton('3️⃣', callback_data='unified_rounds_3'),
-            InlineKeyboardButton('4️⃣', callback_data='unified_rounds_4'),
-            InlineKeyboardButton('5️⃣', callback_data='unified_rounds_5')
-        ],
-        # Questions per round
-        [
-            InlineKeyboardButton('❓3', callback_data='unified_questions_3'),
-            InlineKeyboardButton('❓5', callback_data='unified_questions_5'),
-            InlineKeyboardButton('❓7', callback_data='unified_questions_7'),
-            InlineKeyboardButton('❓10', callback_data='unified_questions_10')
-        ],
-        # Time per question
-        [
-            InlineKeyboardButton('⏱️30с', callback_data='unified_time_30'),
-            InlineKeyboardButton('⏱️60с', callback_data='unified_time_60'),
-            InlineKeyboardButton('⏱️120с', callback_data='unified_time_120'),
-            InlineKeyboardButton('⏱️300с', callback_data='unified_time_300')
-        ],
-        # Theme and start
-        [
-            InlineKeyboardButton('📚 Задать тему', callback_data='unified_theme'),
-            InlineKeyboardButton('✅ Начать игру', callback_data='unified_start')
+    # Create keyboard based on current mode
+    if game_state.in_registration_mode:
+        # Registration mode keyboard
+        keyboard = [
+            [
+                InlineKeyboardButton('🎯 Присоединиться', callback_data='unified_join'),
+                InlineKeyboardButton('✅ Завершить регистрацию', callback_data='unified_end_registration')
+            ],
+            [
+                InlineKeyboardButton('◀️ Назад к настройкам', callback_data='unified_back_to_settings')
+            ]
         ]
-    ]
+    else:
+        # Settings mode keyboard  
+        keyboard = [
+            # Mode selection
+            [
+                InlineKeyboardButton('👥 Командный', callback_data='unified_mode_team'),
+                InlineKeyboardButton('👤 Индивидуальный', callback_data='unified_mode_individual')
+            ],
+            # Difficulty selection  
+            [
+                InlineKeyboardButton('🟢 Легкий', callback_data='unified_difficulty_easy'),
+                InlineKeyboardButton('🟡 Средний', callback_data='unified_difficulty_medium'),
+                InlineKeyboardButton('🔴 Сложный', callback_data='unified_difficulty_hard')
+            ],
+            # Rounds
+            [
+                InlineKeyboardButton('1️⃣', callback_data='unified_rounds_1'),
+                InlineKeyboardButton('2️⃣', callback_data='unified_rounds_2'),
+                InlineKeyboardButton('3️⃣', callback_data='unified_rounds_3'),
+                InlineKeyboardButton('4️⃣', callback_data='unified_rounds_4'),
+                InlineKeyboardButton('5️⃣', callback_data='unified_rounds_5')
+            ],
+            # Questions per round
+            [
+                InlineKeyboardButton('❓3', callback_data='unified_questions_3'),
+                InlineKeyboardButton('❓5', callback_data='unified_questions_5'),
+                InlineKeyboardButton('❓7', callback_data='unified_questions_7'),
+                InlineKeyboardButton('❓10', callback_data='unified_questions_10')
+            ],
+            # Time per question
+            [
+                InlineKeyboardButton('⏱️30с', callback_data='unified_time_30'),
+                InlineKeyboardButton('⏱️60с', callback_data='unified_time_60'),
+                InlineKeyboardButton('⏱️120с', callback_data='unified_time_120'),
+                InlineKeyboardButton('⏱️300с', callback_data='unified_time_300')
+            ],
+            # Theme and start
+            [
+                InlineKeyboardButton('📚 Задать тему', callback_data='unified_theme'),
+                InlineKeyboardButton('✅ Начать игру', callback_data='unified_start')
+            ]
+        ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     

@@ -234,6 +234,9 @@ async def _send_unified_settings(context: ContextTypes.DEFAULT_TYPE, chat_id: Ch
     
     game_state = get_game_state(chat_id)
     
+    # Reset to settings mode when creating new menu
+    game_state.in_registration_mode = False
+    
     # Initialize default settings if none exist
     if not game_state.settings:
         game_state.settings = GameSettings(
