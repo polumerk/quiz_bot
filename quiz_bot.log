@@ -2350,3 +2350,83 @@ Traceback (most recent call last):
     sys.exit(1)
     ~~~~~~~~^^^
 SystemExit: 1
+2025-07-07 09:06:07,450 - root - INFO - 🔧 Using Replit-specific entry point
+2025-07-07 09:06:07,450 - root - INFO - === QUIZ BOT STARTING ===
+2025-07-07 09:06:07,450 - root - INFO - Python version: 3.13.3 (main, Apr  8 2025, 19:55:40) [GCC 14.2.0]
+2025-07-07 09:06:07,450 - root - INFO - Environment debug info:
+2025-07-07 09:06:07,450 - root - INFO -   Is Replit: False
+2025-07-07 09:06:07,450 - root - INFO -   Replit URL: None
+2025-07-07 09:06:07,450 - root - INFO - Initializing database...
+2025-07-07 09:06:07,451 - root - INFO - Database initialized successfully
+2025-07-07 09:06:07,451 - root - INFO - OpenAI API key loaded successfully
+2025-07-07 09:06:07,451 - root - INFO - Creating Telegram application...
+2025-07-07 09:06:07,497 - root - INFO - Telegram application created successfully
+2025-07-07 09:06:07,497 - root - INFO - Registering handlers...
+2025-07-07 09:06:07,498 - root - INFO - Handlers registered successfully
+2025-07-07 09:06:07,498 - root - INFO - No webhook configured, will use polling mode
+2025-07-07 09:06:07,498 - root - INFO - 📡 Starting polling mode...
+2025-07-07 09:06:07,767 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getMe "HTTP/1.1 200 OK"
+2025-07-07 09:06:07,857 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/deleteWebhook "HTTP/1.1 200 OK"
+2025-07-07 09:06:07,858 - telegram.ext.Application - INFO - Application started
+2025-07-07 09:06:15,545 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getUpdates "HTTP/1.1 200 OK"
+2025-07-07 09:06:15,545 - telegram.ext.Application - INFO - Application is stopping. This might take a moment.
+2025-07-07 09:06:15,545 - telegram.ext.Application - INFO - Application.stop() complete
+2025-07-07 09:06:15,546 - root - ERROR - Event loop conflict. Cannot run in this environment.
+2025-07-07 09:06:15,556 - asyncio - ERROR - Task exception was never retrieved
+future: <Task finished name='Task-1' coro=<main_async() done, defined at /workspace/main_replit.py:16> exception=SystemExit(1)>
+Traceback (most recent call last):
+  File "/workspace/main.py", line 245, in run_bot
+    await app.run_polling(drop_pending_updates=True)
+          ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/telegram/ext/_application.py", line 837, in run_polling
+    return self.__run(
+           ~~~~~~~~~~^
+        updater_coroutine=self.updater.start_polling(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<9 lines>...
+        close_loop=close_loop,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/telegram/ext/_application.py", line 1077, in __run
+    loop.close()
+    ~~~~~~~~~~^^
+  File "/usr/lib/python3.13/asyncio/unix_events.py", line 70, in close
+    super().close()
+    ~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/asyncio/selector_events.py", line 101, in close
+    raise RuntimeError("Cannot close a running event loop")
+RuntimeError: Cannot close a running event loop
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/main_replit.py", line 32, in <module>
+    main()
+    ~~~~^^
+  File "/workspace/main_replit.py", line 26, in main
+    asyncio.run(main_async())
+    ~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/nest_asyncio.py", line 30, in run
+    return loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/nest_asyncio.py", line 92, in run_until_complete
+    self._run_once()
+    ~~~~~~~~~~~~~~^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/nest_asyncio.py", line 133, in _run_once
+    handle._run()
+    ~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/asyncio/tasks.py", line 293, in __step
+    self.__step_run_and_handle_result(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/lib/python3.13/asyncio/tasks.py", line 304, in __step_run_and_handle_result
+    result = coro.send(None)
+  File "/workspace/main_replit.py", line 20, in main_async
+    await run_bot()
+  File "/workspace/main.py", line 249, in run_bot
+    sys.exit(1)
+    ~~~~~~~~^^^
+SystemExit: 1
