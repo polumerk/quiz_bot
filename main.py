@@ -59,7 +59,19 @@ def register_handlers(app) -> None:
     app.add_handler(CommandHandler('stat', stat_command))
     app.add_handler(CommandHandler('lang', lang_command))
     
-    # Callback query handlers
+    # UNIFIED SETTINGS HANDLER - MUST BE FIRST to handle unified_ callbacks
+    try:
+        from src.handlers.callbacks import unified_settings_callback
+        
+        # Register unified settings handler for all unified_ callbacks
+        app.add_handler(CallbackQueryHandler(unified_settings_callback, pattern='^unified_'))
+        
+        logging.info("✅ Unified settings handler registered FIRST")
+    except ImportError as e:
+        logging.warning(f"⚠️ Could not import unified handler: {e}. Using fallback mode.")
+        # Fallback - bot will work without unified settings
+    
+    # Callback query handlers (legacy)
     app.add_handler(CallbackQueryHandler(mode_callback, pattern='^mode_'))
     app.add_handler(CallbackQueryHandler(difficulty_callback, pattern='^difficulty_'))
     app.add_handler(CallbackQueryHandler(rounds_callback, pattern='^rounds_'))
@@ -72,18 +84,6 @@ def register_handlers(app) -> None:
     app.add_handler(CallbackQueryHandler(next_round_callback, pattern='^next_round$'))
     app.add_handler(CallbackQueryHandler(show_rating_callback, pattern='^show_rating$'))
     app.add_handler(CallbackQueryHandler(leave_callback, pattern='^leave$'))
-    
-    # Import new unified settings handler
-    try:
-        from src.handlers.callbacks import unified_settings_callback
-        
-        # Register unified settings handler for all unified_ callbacks
-        app.add_handler(CallbackQueryHandler(unified_settings_callback, pattern='^unified_'))
-        
-        logging.info("✅ Unified settings handler registered")
-    except ImportError as e:
-        logging.warning(f"⚠️ Could not import unified handler: {e}. Using fallback mode.")
-        # Fallback - bot will work without unified settings
     
     # Message handlers (order matters - more specific first!)
     app.add_handler(MessageHandler(
