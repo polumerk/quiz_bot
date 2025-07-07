@@ -57,10 +57,33 @@ class Question:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Question':
         """Create Question from dictionary"""
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected dict, got {type(data)}: {data}")
+        
+        if 'question' not in data:
+            raise ValueError(f"Question data missing 'question' field: {data}")
+        
+        question = data['question']
+        if not question or not isinstance(question, str):
+            raise ValueError(f"Question field must be non-empty string: {question}")
+        
+        # Get answer from different possible fields
+        correct_answer = data.get('answer', data.get('correct_answer', ''))
+        if not correct_answer:
+            # If no answer provided, use a default
+            correct_answer = 'Не указан'
+        
+        # Parse difficulty safely
+        difficulty_str = data.get('difficulty', 'medium')
+        try:
+            difficulty = Difficulty(difficulty_str)
+        except ValueError:
+            difficulty = Difficulty.MEDIUM
+        
         return cls(
-            question=data['question'],
-            correct_answer=data.get('answer', data.get('correct_answer', '')),
-            difficulty=Difficulty(data.get('difficulty', 'medium')),
+            question=question,
+            correct_answer=correct_answer,
+            difficulty=difficulty,
             explanation=data.get('explanation', '')
         )
 

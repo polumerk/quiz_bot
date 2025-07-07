@@ -41,22 +41,56 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
             get_questions_per_round=lambda cid: settings.questions_per_round
         )
         
+        import logging
+        logging.info(f"DEBUG: OpenAI returned {len(questions_data)} questions: {questions_data}")
+        
+        # Check if OpenAI returned error
+        if (len(questions_data) == 1 and 
+            isinstance(questions_data[0], dict) and 
+            "Ошибка генерации вопросов" in str(questions_data[0].get('question', ''))):
+            await context.bot.send_message(
+                chat_id, 
+                "❌ Ошибка генерации вопросов через OpenAI. Проверьте:\n"
+                "• Корректность API ключа\n"
+                "• Доступность OpenAI API\n"
+                "• Тему (попробуйте другую)\n\n"
+                "Попробуйте позже или измените настройки."
+            )
+            return
+        
         # Convert to Question objects
         question_objects = []
-        for q_data in questions_data:
+        for i, q_data in enumerate(questions_data):
             try:
+                logging.info(f"DEBUG: Processing question {i}: {q_data}")
+                
+                # Validate question data
+                if not isinstance(q_data, dict):
+                    logging.error(f"Question {i} is not a dict: {q_data}")
+                    continue
+                
+                required_fields = ['question']
+                if not all(field in q_data for field in required_fields):
+                    logging.error(f"Question {i} missing required fields: {q_data}")
+                    continue
+                
                 question = Question.from_dict(q_data)
                 question_objects.append(question)
+                logging.info(f"DEBUG: Successfully parsed question {i}: {question.question}")
+                
             except Exception as e:
-                log_error(e, f"parsing question: {q_data}", chat_id)
+                log_error(e, f"parsing question {i}: {q_data}", chat_id)
                 continue
         
         if not question_objects:
             await context.bot.send_message(
                 chat_id, 
-                "❌ Ошибка генерации вопросов. Попробуйте позже или измените тему."
+                "❌ Не удалось создать вопросы из ответа OpenAI.\n"
+                "Попробуйте изменить тему или проверьте настройки API."
             )
             return
+        
+        logging.info(f"DEBUG: Successfully created {len(question_objects)} Question objects")
         
         game_state.questions = question_objects
         game_state.question_index = 0
@@ -68,7 +102,8 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
         log_error(e, "start_round", chat_id)
         await context.bot.send_message(
             chat_id, 
-            "❌ Ошибка при запуске раунда. Попробуйте позже."
+            f"❌ Ошибка при запуске раунда: {str(e)}\n"
+            "Попробуйте позже или проверьте настройки."
         )
 
 

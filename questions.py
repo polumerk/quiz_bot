@@ -33,8 +33,16 @@ SYSTEM_PROMPT_CHECK = (
 )
 
 async def openai_generate_questions(theme: str, round_num: int, chat_id: int, get_difficulty, get_questions_per_round) -> List[Any]:
-    with open('openai_key.txt', 'r', encoding='utf-8') as f:
-        OPENAI_KEY = f.read().strip()
+    try:
+        with open('openai_key.txt', 'r', encoding='utf-8') as f:
+            OPENAI_KEY = f.read().strip()
+    except FileNotFoundError:
+        print('[LOG] OpenAI API key file not found')
+        return [{"question": "Ошибка: файл openai_key.txt не найден", "answer": "N/A", "difficulty": "medium"}]
+    
+    if not OPENAI_KEY or not OPENAI_KEY.startswith('sk-'):
+        print('[LOG] Invalid OpenAI API key')
+        return [{"question": "Ошибка: неверный OpenAI API ключ", "answer": "N/A", "difficulty": "medium"}]
     history_questions = get_questions_history(theme, limit=50)
     history_text = ''
     if history_questions:
@@ -56,14 +64,51 @@ async def openai_generate_questions(theme: str, round_num: int, chat_id: int, ge
         "max_tokens": 1024,
         "temperature": temperature
     }
+    print(f'[LOG] Sending request to OpenAI for theme: {theme}, round: {round_num}')
+    
     async with aiohttp.ClientSession() as session:
         async with session.post('https://api.openai.com/v1/chat/completions', headers=headers, json=data) as resp:
-            result = await resp.json()
+            print(f'[LOG] OpenAI response status: {resp.status}')
+            
+            # Handle non-200 status codes
+            if resp.status != 200:
+                error_text = await resp.text()
+                print(f'[LOG] OpenAI HTTP Error {resp.status}: {error_text}')
+                return [{"question": f"Ошибка OpenAI API (HTTP {resp.status})", "answer": "N/A", "difficulty": "medium"}]
+            
+            try:
+                result = await resp.json()
+            except Exception as e:
+                response_text = await resp.text()
+                print(f'[LOG] Failed to parse OpenAI response as JSON: {e}')
+                print(f'[LOG] Raw response: {response_text[:500]}...')
+                return [{"question": "Ошибка парсинга ответа OpenAI", "answer": "N/A", "difficulty": "medium"}]
+            
+            print(f'[LOG] OpenAI response keys: {list(result.keys()) if isinstance(result, dict) else "not dict"}')
+            
+            # Check if OpenAI returned an error
+            if not isinstance(result, dict):
+                print('[LOG] OpenAI response is not a dict:', result)
+                return [{"question": "Ошибка генерации вопросов. Попробуйте ещё раз.", "answer": "N/A", "difficulty": "medium"}]
+            
+            if 'error' in result:
+                print('[LOG] OpenAI API Error:', result['error'])
+                return [{"question": f"Ошибка OpenAI: {result['error'].get('message', 'Unknown error')}", "answer": "N/A", "difficulty": "medium"}]
+            
+            if 'choices' not in result or not result['choices']:
+                print('[LOG] OpenAI response missing choices:', result)
+                return [{"question": "Ошибка генерации вопросов. Попробуйте ещё раз.", "answer": "N/A", "difficulty": "medium"}]
+            
             try:
                 text = result['choices'][0]['message']['content']
+                print(f'[LOG] OpenAI raw content: {text[:200]}...')
+                
                 text = re.sub(r'^```json\s*|```$', '', text.strip(), flags=re.MULTILINE)
                 text = text.strip()
+                print(f'[LOG] Cleaned text for JSON parsing: {text[:200]}...')
+                
                 questions = json.loads(text)
+                print(f'[LOG] Successfully parsed {len(questions)} questions from OpenAI')
                 unique_questions = []
                 history_set = set(q.strip().lower() for q in history_questions)
                 for q in questions:
@@ -77,26 +122,31 @@ async def openai_generate_questions(theme: str, round_num: int, chat_id: int, ge
                     data["messages"][1]["content"] = extra_prompt
                     async with session.post('https://api.openai.com/v1/chat/completions', headers=headers, json=data) as resp2:
                         result2 = await resp2.json()
-                        try:
-                            text2 = result2['choices'][0]['message']['content']
-                            text2 = re.sub(r'^```json\s*|```$', '', text2.strip(), flags=re.MULTILINE)
-                            text2 = text2.strip()
-                            new_questions = json.loads(text2)
-                            for q in new_questions:
-                                q_text = q.get('question', str(q)) if isinstance(q, dict) else str(q)
-                                if q_text.strip().lower() not in history_set:
-                                    unique_questions.append(q)
-                                    history_set.add(q_text.strip().lower())
-                        except Exception as e:
-                            print('[LOG] Ошибка парсинга OpenAI (доп. попытка):', e)
+                        
+                        # Check second request too
+                        if isinstance(result2, dict) and 'choices' in result2 and result2['choices']:
+                            try:
+                                text2 = result2['choices'][0]['message']['content']
+                                text2 = re.sub(r'^```json\s*|```$', '', text2.strip(), flags=re.MULTILINE)
+                                text2 = text2.strip()
+                                new_questions = json.loads(text2)
+                                for q in new_questions:
+                                    q_text = q.get('question', str(q)) if isinstance(q, dict) else str(q)
+                                    if q_text.strip().lower() not in history_set:
+                                        unique_questions.append(q)
+                                        history_set.add(q_text.strip().lower())
+                            except Exception as e:
+                                print('[LOG] Ошибка парсинга OpenAI (доп. попытка):', e)
+                        else:
+                            print('[LOG] Ошибка второго запроса к OpenAI:', result2)
                     attempts += 1
                 for q in unique_questions:
                     q_text = q.get('question', str(q)) if isinstance(q, dict) else str(q)
                     add_question_to_history(theme, q_text)
-                return unique_questions
+                return unique_questions if unique_questions else [{"question": "Ошибка генерации вопросов. Попробуйте ещё раз.", "answer": "N/A", "difficulty": "medium"}]
             except Exception as e:
                 print('[LOG] Ошибка парсинга OpenAI:', e)
-                return ["Ошибка генерации вопросов. Попробуйте ещё раз."]
+                return [{"question": "Ошибка генерации вопросов. Попробуйте ещё раз.", "answer": "N/A", "difficulty": "medium"}]
 
 def build_openai_prompt(theme: str, round_num: int, questions_per_round: int, history_text: str, difficulty: str = 'medium') -> str:
     return (
@@ -137,6 +187,20 @@ async def openai_check_answers(theme: str, questions: List[str], answers: List[s
     async with aiohttp.ClientSession() as session:
         async with session.post('https://api.openai.com/v1/chat/completions', headers=headers, json=data) as resp:
             result = await resp.json()
+            
+            # Check if OpenAI returned an error
+            if not isinstance(result, dict):
+                print('[LOG] OpenAI response is not a dict:', result)
+                return []
+            
+            if 'error' in result:
+                print('[LOG] OpenAI API Error:', result['error'])
+                return []
+            
+            if 'choices' not in result or not result['choices']:
+                print('[LOG] OpenAI response missing choices:', result)
+                return []
+            
             try:
                 text = result['choices'][0]['message']['content']
                 text = re.sub(r'^```json\s*|```$', '', text.strip(), flags=re.MULTILINE)
