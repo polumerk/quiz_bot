@@ -8,6 +8,13 @@ import os
 import sys
 from typing import Optional
 
+# Fix for Replit and other environments with existing event loops
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
+
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler, 
     MessageHandler, filters
@@ -214,11 +221,38 @@ async def run_bot() -> None:
 
 
 def main() -> None:
-    """Entry point"""
+    """Entry point with event loop handling for different environments"""
     setup_logging()
     
     try:
-        asyncio.run(run_bot())
+        # Try nest_asyncio approach first (best for Replit)
+        try:
+            # This will work if nest_asyncio is applied
+            asyncio.run(run_bot())
+        except RuntimeError as e:
+            if "cannot be called from a running event loop" in str(e):
+                logging.info("🔄 Detected running event loop, trying alternative approach...")
+                
+                # Try to get existing loop and run there
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # We're in a running loop (like Replit), create a task
+                        logging.info("📋 Creating task in existing loop")
+                        task = loop.create_task(run_bot())
+                        # In Replit this should work with nest_asyncio
+                        loop.run_until_complete(task)
+                    else:
+                        # Loop exists but not running
+                        logging.info("🚀 Running in existing non-running loop")
+                        loop.run_until_complete(run_bot())
+                except Exception as loop_error:
+                    logging.error(f"❌ Loop handling failed: {loop_error}")
+                    raise
+            else:
+                # Some other runtime error
+                raise
+            
     except KeyboardInterrupt:
         logging.info("Bot stopped by user")
     except Exception as e:
