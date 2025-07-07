@@ -652,3 +652,82 @@ async def _end_registration(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
     # Import here to avoid circular imports
     from ..game.logic import start_round
     await start_round(context, chat_id)
+
+
+@safe_async_call("unified_settings_callback")
+async def unified_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle unified settings menu callbacks"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    # Parse callback data
+    data = query.data
+    if not data.startswith('unified_'):
+        return
+    
+    parts = data.split('_', 2)  # unified_type_value
+    if len(parts) < 3:
+        if data == 'unified_theme':
+            # Set theme input mode
+            game_state.awaiting_theme = True
+            await context.bot.send_message(
+                chat_id, 
+                '📚 Введите тему для вопросов (например: "история", "наука", "спорт"):'
+            )
+            return
+        elif data == 'unified_start':
+            # Start game
+            if not game_state.settings or not game_state.settings.theme:
+                await context.bot.send_message(
+                    chat_id, 
+                    '❌ Пожалуйста, сначала задайте тему для вопросов.'
+                )
+                return
+            await _send_registration_message(context, chat_id)
+            return
+        return
+    
+    setting_type = parts[1]
+    setting_value = parts[2]
+    
+    # Initialize settings if needed
+    if not game_state.settings:
+        from ..models.types import GameSettings
+        game_state.settings = GameSettings(
+            mode=GameMode.TEAM,
+            difficulty=Difficulty.MEDIUM,
+            rounds=2,
+            questions_per_round=5,
+            time_per_question=300,
+            theme=""
+        )
+    
+    # Update settings based on callback
+    try:
+        if setting_type == 'mode':
+            game_state.settings.mode = GameMode.TEAM if setting_value == 'team' else GameMode.INDIVIDUAL
+        elif setting_type == 'difficulty':
+            game_state.settings.difficulty = Difficulty(setting_value)
+        elif setting_type == 'rounds':
+            game_state.settings.rounds = int(setting_value)
+        elif setting_type == 'questions':
+            game_state.settings.questions_per_round = int(setting_value)
+        elif setting_type == 'time':
+            game_state.settings.time_per_question = int(setting_value)
+            
+        # Refresh unified settings menu
+        from .commands import _send_unified_settings
+        await _send_unified_settings(context, chat_id)
+        
+    except Exception as e:
+        log_error(e, f"unified_settings_callback: {data}", chat_id)
+        await context.bot.send_message(
+            chat_id, 
+            "❌ Ошибка при обновлении настроек."
+        )

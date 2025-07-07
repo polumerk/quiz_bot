@@ -23,14 +23,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
     chat_id = ChatID(update.effective_chat.id)
     
-    # Try unified settings first, fallback to old step-by-step mode
-    try:
-        # Check if new handlers are available by trying to import them
-        from .callbacks import change_mode_callback
-        await _send_unified_settings(context, chat_id)
-    except ImportError:
-        # Fallback to old step-by-step settings
-        await _send_settings_message(context, chat_id, 'mode')
+    # Send unified settings menu (using existing handlers)
+    await _send_unified_settings(context, chat_id)
 
 
 @safe_async_call("next_command")
@@ -235,50 +229,82 @@ async def _send_settings_message(
 
 
 async def _send_unified_settings(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
-    """Send unified settings menu in one message"""
+    """Send unified settings menu in one message using existing handlers"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     
     game_state = get_game_state(chat_id)
     
-    # Default settings
-    current_mode = "Командный" if not game_state.settings else (
-        "Командный" if game_state.settings.mode == GameMode.TEAM else "Индивидуальный"
+    # Initialize default settings if none exist
+    if not game_state.settings:
+        game_state.settings = GameSettings(
+            mode=GameMode.TEAM,
+            difficulty=Difficulty.MEDIUM,
+            rounds=2,
+            questions_per_round=5,
+            time_per_question=300,
+            theme=""
+        )
+    
+    settings = game_state.settings
+    
+    # Format current settings for display
+    mode_text = "Командный" if settings.mode == GameMode.TEAM else "Индивидуальный"
+    difficulty_text = {"easy": "Легкий", "medium": "Средний", "hard": "Сложный"}.get(
+        settings.difficulty.value, "Средний"
     )
-    current_difficulty = "Средний" if not game_state.settings else {
-        "easy": "Легкий", "medium": "Средний", "hard": "Сложный"
-    }.get(game_state.settings.difficulty.value, "Средний")
-    current_rounds = 2 if not game_state.settings else game_state.settings.rounds
-    current_questions = 5 if not game_state.settings else game_state.settings.questions_per_round
-    current_time = 300 if not game_state.settings else game_state.settings.time_per_question
-    current_theme = "не задана" if not game_state.settings else game_state.settings.theme
+    theme_text = settings.theme if settings.theme else "не задана"
     
     emoji = lang.get_emoji('emoji_welcome', chat_id)
     text = f"""{emoji} **Настройка Quiz Bot**
 
-🎮 **Режим игры:** {current_mode}
-🎯 **Сложность:** {current_difficulty}  
-🔄 **Раундов:** {current_rounds}
-❓ **Вопросов в раунде:** {current_questions}
-⏰ **Время на вопрос:** {current_time} сек
-📚 **Тема:** {current_theme}
+🎮 **Режим:** {mode_text}
+🎯 **Сложность:** {difficulty_text}  
+🔄 **Раундов:** {settings.rounds}
+❓ **Вопросов в раунде:** {settings.questions_per_round}
+⏰ **Время на вопрос:** {settings.time_per_question} сек
+📚 **Тема:** {theme_text}
 
-Измените нужные параметры, затем введите тему и начните игру!"""
+**Режим игры:**"""
     
+    # Create inline keyboard with all settings in one message
     keyboard = [
+        # Mode selection
         [
-            InlineKeyboardButton('🎮 Режим', callback_data='change_mode'),
-            InlineKeyboardButton('🎯 Сложность', callback_data='change_difficulty')
+            InlineKeyboardButton('👥 Командный', callback_data='unified_mode_team'),
+            InlineKeyboardButton('👤 Индивидуальный', callback_data='unified_mode_individual')
         ],
+        # Difficulty selection  
         [
-            InlineKeyboardButton('🔄 Раунды', callback_data='change_rounds'),
-            InlineKeyboardButton('❓ Вопросы', callback_data='change_questions')
+            InlineKeyboardButton('🟢 Легкий', callback_data='unified_difficulty_easy'),
+            InlineKeyboardButton('🟡 Средний', callback_data='unified_difficulty_medium'),
+            InlineKeyboardButton('🔴 Сложный', callback_data='unified_difficulty_hard')
         ],
+        # Rounds
         [
-            InlineKeyboardButton('⏰ Время', callback_data='change_time'),
-            InlineKeyboardButton('📚 Тема', callback_data='change_theme')
+            InlineKeyboardButton('1️⃣', callback_data='unified_rounds_1'),
+            InlineKeyboardButton('2️⃣', callback_data='unified_rounds_2'),
+            InlineKeyboardButton('3️⃣', callback_data='unified_rounds_3'),
+            InlineKeyboardButton('4️⃣', callback_data='unified_rounds_4'),
+            InlineKeyboardButton('5️⃣', callback_data='unified_rounds_5')
         ],
+        # Questions per round
         [
-            InlineKeyboardButton('✅ Начать игру', callback_data='start_game')
+            InlineKeyboardButton('❓3', callback_data='unified_questions_3'),
+            InlineKeyboardButton('❓5', callback_data='unified_questions_5'),
+            InlineKeyboardButton('❓7', callback_data='unified_questions_7'),
+            InlineKeyboardButton('❓10', callback_data='unified_questions_10')
+        ],
+        # Time per question
+        [
+            InlineKeyboardButton('⏱️30с', callback_data='unified_time_30'),
+            InlineKeyboardButton('⏱️60с', callback_data='unified_time_60'),
+            InlineKeyboardButton('⏱️120с', callback_data='unified_time_120'),
+            InlineKeyboardButton('⏱️300с', callback_data='unified_time_300')
+        ],
+        # Theme and start
+        [
+            InlineKeyboardButton('📚 Задать тему', callback_data='unified_theme'),
+            InlineKeyboardButton('✅ Начать игру', callback_data='unified_start')
         ]
     ]
     

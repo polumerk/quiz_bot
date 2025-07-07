@@ -37,8 +37,15 @@ async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     game_state.awaiting_theme = False
     
     # Return to unified settings with updated theme
-    from .commands import _send_unified_settings
-    await _send_unified_settings(context, chat_id)
+    try:
+        from .commands import _send_unified_settings
+        await _send_unified_settings(context, chat_id)
+    except Exception:
+        # Fallback - send success message
+        await context.bot.send_message(
+            chat_id, 
+            f'✅ Тема установлена: {theme}\nИспользуйте /start для настройки игры.'
+        )
 
 
 @safe_async_call("answer_message_handler")
