@@ -100,6 +100,10 @@ async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
         
     chat_id = ChatID(update.effective_chat.id)
+    game_state = get_game_state(chat_id)
+    
+    # Set flag to expect language selection
+    game_state.awaiting_language = True
     
     keyboard = [["Русский", "English"]]
     reply_markup = ReplyKeyboardMarkup(

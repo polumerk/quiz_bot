@@ -133,12 +133,21 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
 
 @safe_async_call("lang_choice_handler")
 async def lang_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle language choice message"""
+    """Handle language choice message (only when expecting language selection)"""
     if not update.message or not update.message.chat:
         return
         
     chat_id = ChatID(update.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    # Only process if we're waiting for language selection
+    if not game_state.awaiting_language:
+        return
+    
     text = update.message.text.lower() if update.message.text else ''
+    
+    # Reset the awaiting flag
+    game_state.awaiting_language = False
     
     if "рус" in text:
         lang.set_language(chat_id, "ru")

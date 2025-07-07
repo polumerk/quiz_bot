@@ -37,6 +37,7 @@ class GameState:
     awaiting_theme: bool = False
     awaiting_answer: bool = False
     awaiting_text_answer: bool = False
+    awaiting_language: bool = False
     
     # Current question state
     current_question: Optional[Question] = None
@@ -145,6 +146,7 @@ class GameState:
         self.awaiting_theme = False
         self.awaiting_answer = False
         self.awaiting_text_answer = False
+        self.awaiting_language = False
         self.current_question = None
         self.question_start_time = None
         self.service_messages.clear()

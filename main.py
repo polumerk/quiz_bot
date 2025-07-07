@@ -31,7 +31,7 @@ from src.handlers import (
     next_round_callback, show_rating_callback, leave_callback,
     theme_message_handler, answer_message_handler, lang_choice_handler
 )
-from src.utils.filters import THEME_STAGE_FILTER, ANSWER_STAGE_FILTER
+from src.utils.filters import THEME_STAGE_FILTER, ANSWER_STAGE_FILTER, LANGUAGE_STAGE_FILTER
 from src.utils.error_handler import log_error
 import db
 
@@ -95,7 +95,7 @@ def register_handlers(app) -> None:
         answer_message_handler
     ))
     app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND, 
+        filters.TEXT & ~filters.COMMAND & LANGUAGE_STAGE_FILTER, 
         lang_choice_handler
     ))
 
