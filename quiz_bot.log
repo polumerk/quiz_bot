@@ -2833,3 +2833,63 @@ Traceback (most recent call last):
     sys.exit(1)
     ~~~~~~~~^^^
 SystemExit: 1
+2025-07-07 14:01:44,284 - root - INFO - === QUIZ BOT STARTING ===
+2025-07-07 14:01:44,284 - root - INFO - Python version: 3.13.3 (main, Apr  8 2025, 19:55:40) [GCC 14.2.0]
+2025-07-07 14:01:44,284 - root - INFO - Environment debug info:
+2025-07-07 14:01:44,285 - root - INFO -   Is Replit: False
+2025-07-07 14:01:44,285 - root - INFO -   Replit URL: None
+2025-07-07 14:01:44,285 - root - INFO - Initializing database...
+2025-07-07 14:01:44,285 - root - INFO - Database initialized successfully
+2025-07-07 14:01:44,285 - root - ERROR - OpenAI configuration error: ❌ OpenAI API key not found! Please set it in Replit Secrets:
+1. 🔒 Open Secrets tab in Replit
+2. ➕ Add new secret: OPENAI_API_KEY = your_openai_key
+3. 🔄 Restart the bot
+
+Alternative: create openai_key.txt file (less secure)
+2025-07-07 14:01:44,295 - asyncio - ERROR - Task exception was never retrieved
+future: <Task finished name='Task-1' coro=<run_bot() done, defined at /workspace/main.py:151> exception=SystemExit(1)>
+Traceback (most recent call last):
+  File "/workspace/main.py", line 183, in run_bot
+    config.load_openai_key()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/workspace/src/config.py", line 66, in load_openai_key
+    raise ValueError(
+    ...<5 lines>...
+    )
+ValueError: ❌ OpenAI API key not found! Please set it in Replit Secrets:
+1. 🔒 Open Secrets tab in Replit
+2. ➕ Add new secret: OPENAI_API_KEY = your_openai_key
+3. 🔄 Restart the bot
+
+Alternative: create openai_key.txt file (less secure)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/main.py", line 308, in <module>
+    main()
+    ~~~~^^
+  File "/workspace/main.py", line 272, in main
+    asyncio.run(run_bot())
+    ~~~~~~~~~~~^^^^^^^^^^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/nest_asyncio.py", line 30, in run
+    return loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/nest_asyncio.py", line 92, in run_until_complete
+    self._run_once()
+    ~~~~~~~~~~~~~~^^
+  File "/home/ubuntu/.local/lib/python3.13/site-packages/nest_asyncio.py", line 133, in _run_once
+    handle._run()
+    ~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/asyncio/tasks.py", line 293, in __step
+    self.__step_run_and_handle_result(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/lib/python3.13/asyncio/tasks.py", line 304, in __step_run_and_handle_result
+    result = coro.send(None)
+  File "/workspace/main.py", line 187, in run_bot
+    sys.exit(1)
+    ~~~~~~~~^^^
+SystemExit: 1
