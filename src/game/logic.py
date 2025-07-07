@@ -104,11 +104,9 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
     game_state = get_game_state(chat_id)
     
     # Clean up service messages
+    from ..utils.error_handler import safe_delete_message
     for msg_id in game_state.service_messages:
-        try:
-            await context.bot.delete_message(chat_id, msg_id)
-        except Exception:
-            pass
+        await safe_delete_message(context, chat_id, msg_id)
     game_state.service_messages.clear()
     
     # Check if round is finished

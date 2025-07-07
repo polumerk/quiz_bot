@@ -8,6 +8,9 @@ from typing import Optional, Callable, Any, TypeVar, Awaitable, Coroutine
 from functools import wraps
 
 from ..models.types import ChatID
+from telegram import Update
+from telegram.ext import ContextTypes
+from telegram.error import TelegramError, BadRequest
 
 
 # Set up logger
@@ -37,46 +40,42 @@ def handle_error(
     return user_message
 
 
-def safe_async_call(context: str = ""):
-    """Decorator for safe async function calls with error handling"""
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                # Try to extract chat_id from args
-                chat_id = None
-                for arg in args:
-                    if hasattr(arg, 'effective_chat') and arg.effective_chat:
-                        chat_id = ChatID(arg.effective_chat.id)
-                        break
-                    elif hasattr(arg, 'message') and arg.message and arg.message.chat:
-                        chat_id = ChatID(arg.message.chat.id)
-                        break
-                
-                log_error(e, context or func.__name__, chat_id)
-                
-                # Try to send error message to user if possible
-                try:
-                    if hasattr(args[0], 'message') and hasattr(args[0].message, 'reply_text'):
-                        await args[0].message.reply_text(
-                            "😕 Произошла ошибка. Попробуйте позже или обратитесь к администратору."
+def safe_async_call(func: Callable) -> Callable:
+    """Decorator для безопасного выполнения асинхронных функций"""
+    @wraps(func)
+    async def wrapper(*args, **kwargs) -> Any:
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"❌ Error in {func.__name__}: {e}")
+            # Если есть update и context, попробуем отправить сообщение об ошибке
+            if len(args) >= 2:
+                update, context = args[0], args[1]
+                if hasattr(update, 'effective_chat') and update.effective_chat:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=update.effective_chat.id,
+                            text="❌ Произошла ошибка. Попробуйте еще раз."
                         )
-                    elif hasattr(args[1], 'bot') and chat_id:
-                        await args[1].bot.send_message(
-                            chat_id, 
-                            "😕 Произошла ошибка. Попробуйте позже или обратитесь к администратору."
-                        )
-                except Exception as send_error:
-                    log_error(send_error, "sending error message")
-                
-                # Re-raise critical errors
-                if isinstance(e, (KeyboardInterrupt, SystemExit)):
-                    raise
-                
-        return wrapper
-    return decorator
+                    except:
+                        pass
+            return None
+    return wrapper
+
+async def safe_delete_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int) -> bool:
+    """Безопасное удаление сообщения с обработкой ошибок"""
+    try:
+        await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        return True
+    except BadRequest as e:
+        if "message to delete not found" in str(e).lower():
+            logger.debug(f"Message {message_id} already deleted or doesn't exist")
+        else:
+            logger.warning(f"Failed to delete message {message_id}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error deleting message {message_id}: {e}")
+        return False
 
 
 def safe_call(context: str = "", default_return: Any = None):

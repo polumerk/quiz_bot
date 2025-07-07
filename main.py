@@ -242,7 +242,7 @@ async def run_bot() -> None:
                     await basic_app.run_polling(drop_pending_updates=True)
                 except Exception as final_error:
                     logging.error(f"❌ All methods failed: {final_error}")
-                    raise
+                    return  # Exit gracefully instead of raising
     else:
         # Polling mode
         logging.info("📡 Starting polling mode...")
@@ -297,8 +297,11 @@ def main() -> None:
     except KeyboardInterrupt:
         logging.info("Bot stopped by user")
     except Exception as e:
-        logging.error(f"Fatal error: {e}")
-        sys.exit(1)
+        if "Cannot close a running event loop" in str(e):
+            logging.info("Event loop handled gracefully")
+        else:
+            logging.error(f"Fatal error: {e}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
