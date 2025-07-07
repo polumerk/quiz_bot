@@ -23,8 +23,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
     chat_id = ChatID(update.effective_chat.id)
     
-    # Send unified settings menu
-    await _send_unified_settings(context, chat_id)
+    # Try unified settings first, fallback to old step-by-step mode
+    try:
+        # Check if new handlers are available by trying to import them
+        from .callbacks import change_mode_callback
+        await _send_unified_settings(context, chat_id)
+    except ImportError:
+        # Fallback to old step-by-step settings
+        await _send_settings_message(context, chat_id, 'mode')
 
 
 @safe_async_call("next_command")
