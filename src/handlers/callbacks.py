@@ -13,6 +13,19 @@ from ..utils.formatters import format_round_results_team
 from .commands import _send_settings_message
 
 
+__all__ = [
+    'mode_callback', 'difficulty_callback', 'rounds_callback', 
+    'questions_callback', 'time_callback', 'join_callback',
+    'end_registration_callback', 'captain_callback', 'answer_callback',
+    'next_round_callback', 'show_rating_callback', 'leave_callback',
+    'change_mode_callback', 'change_difficulty_callback', 'change_rounds_callback',
+    'change_questions_callback', 'change_time_callback', 'change_theme_callback',
+    'start_game_callback', 'back_to_settings_callback', 'set_mode_callback',
+    'set_difficulty_callback', 'set_rounds_callback', 'set_questions_callback',
+    'set_time_callback'
+]
+
+
 @safe_async_call("change_mode_callback")
 async def change_mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle change mode button"""
