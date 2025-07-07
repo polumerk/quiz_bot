@@ -85,13 +85,13 @@ def register_handlers(app) -> None:
         logging.warning(f"⚠️ Could not import unified handler: {e}. Using fallback mode.")
         # Fallback - bot will work without unified settings
     
-    # Message handlers
+    # Message handlers (order matters - more specific first!)
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND & THEME_STAGE_FILTER, 
         theme_message_handler
     ))
     app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & ANSWER_STAGE_FILTER, 
+        filters.REPLY & filters.TEXT & ~filters.COMMAND, 
         answer_message_handler
     ))
     app.add_handler(MessageHandler(

@@ -45,6 +45,7 @@ class GameState:
     
     # UI state for unified settings
     settings_message_id: Optional[MessageID] = None
+    registration_message_id: Optional[MessageID] = None
     
     # UI state
     service_messages: List[MessageID] = field(default_factory=list)

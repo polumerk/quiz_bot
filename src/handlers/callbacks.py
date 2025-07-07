@@ -617,7 +617,7 @@ async def _send_registration_message(
     chat_id: ChatID, 
     countdown: Optional[int] = None
 ) -> None:
-    """Send registration message with participant list"""
+    """Send or update registration message with participant list"""
     game_state = get_game_state(chat_id)
     participants = game_state.participants
     
@@ -634,7 +634,23 @@ async def _send_registration_message(
     if countdown:
         text += f'\n⏰ Осталось: {countdown} сек'
     
-    await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
+    # Try to edit existing registration message
+    if game_state.registration_message_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=game_state.registration_message_id,
+                text=text,
+                reply_markup=reply_markup
+            )
+            return
+        except Exception:
+            # If editing fails, send new message
+            pass
+    
+    # Send new registration message
+    msg = await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
+    game_state.registration_message_id = MessageID(msg.message_id)
 
 
 async def _end_registration(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
@@ -679,10 +695,12 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
             
             # Set theme input mode
             game_state.awaiting_theme = True
-            await context.bot.send_message(
+            theme_msg = await context.bot.send_message(
                 chat_id, 
                 '📚 Введите тему для вопросов (например: "история", "наука", "спорт"):'
             )
+            # Save theme request message ID for deletion
+            game_state.service_messages.append(MessageID(theme_msg.message_id))
             return
         elif data == 'unified_start':
             # Start game

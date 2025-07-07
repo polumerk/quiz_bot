@@ -114,12 +114,17 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
         # Store question message ID for reply detection
         game_state.current_question_message_id = msg.message_id
         
-        # Schedule timeout
-        context.job_queue.run_once(
-            question_timeout,
-            settings.time_per_question,
-            chat_id=chat_id
-        )
+        # Schedule timeout (only if job_queue is available)
+        if context.job_queue:
+            context.job_queue.run_once(
+                question_timeout,
+                settings.time_per_question,
+                chat_id=chat_id
+            )
+        else:
+            # Fallback: no timeout, users can answer anytime
+            import logging
+            logging.warning(f"JobQueue not available - no question timeout (Chat ID: {chat_id})")
         
     except Exception as e:
         log_error(e, "ask_next_question", chat_id)

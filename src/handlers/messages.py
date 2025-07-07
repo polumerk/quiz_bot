@@ -36,6 +36,20 @@ async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     game_state.awaiting_theme = False
     
+    # Clean up theme-related messages for clean chat
+    try:
+        # Delete the theme request message (bot's message asking for theme)
+        # Delete the user's reply with theme
+        await update.message.delete()
+        # Try to delete some recent service messages
+        for msg_id in game_state.service_messages[-2:]:  # Last 2 messages
+            try:
+                await context.bot.delete_message(chat_id, msg_id)
+            except Exception:
+                pass
+    except Exception:
+        pass  # Ignore deletion errors
+    
     # Edit the existing settings message instead of creating new one
     try:
         if game_state.settings_message_id:
