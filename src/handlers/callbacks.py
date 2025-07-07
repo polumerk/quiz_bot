@@ -721,9 +721,8 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
         elif setting_type == 'time':
             game_state.settings.time_per_question = int(setting_value)
             
-        # Refresh unified settings menu
-        from .commands import _send_unified_settings
-        await _send_unified_settings(context, chat_id)
+        # Update the existing message instead of sending new one
+        await _edit_unified_settings_message(context, chat_id, query.message.message_id)
         
     except Exception as e:
         log_error(e, f"unified_settings_callback: {data}", chat_id)
@@ -731,3 +730,96 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
             chat_id, 
             "❌ Ошибка при обновлении настроек."
         )
+
+
+async def _edit_unified_settings_message(
+    context: ContextTypes.DEFAULT_TYPE, 
+    chat_id: ChatID, 
+    message_id: int
+) -> None:
+    """Edit existing unified settings message"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    import lang
+    
+    game_state = get_game_state(chat_id)
+    
+    if not game_state.settings:
+        return
+    
+    settings = game_state.settings
+    
+    # Format current settings for display
+    mode_text = "Командный" if settings.mode == GameMode.TEAM else "Индивидуальный"
+    difficulty_text = {"easy": "Легкий", "medium": "Средний", "hard": "Сложный"}.get(
+        settings.difficulty.value, "Средний"
+    )
+    theme_text = settings.theme if settings.theme else "не задана"
+    
+    emoji = lang.get_emoji('emoji_welcome', chat_id)
+    text = f"""{emoji} **Настройка Quiz Bot**
+
+🎮 **Режим:** {mode_text}
+🎯 **Сложность:** {difficulty_text}  
+🔄 **Раундов:** {settings.rounds}
+❓ **Вопросов в раунде:** {settings.questions_per_round}
+⏰ **Время на вопрос:** {settings.time_per_question} сек
+📚 **Тема:** {theme_text}
+
+**Режим игры:**"""
+    
+    # Create inline keyboard with all settings in one message
+    keyboard = [
+        # Mode selection
+        [
+            InlineKeyboardButton('👥 Командный', callback_data='unified_mode_team'),
+            InlineKeyboardButton('👤 Индивидуальный', callback_data='unified_mode_individual')
+        ],
+        # Difficulty selection  
+        [
+            InlineKeyboardButton('🟢 Легкий', callback_data='unified_difficulty_easy'),
+            InlineKeyboardButton('🟡 Средний', callback_data='unified_difficulty_medium'),
+            InlineKeyboardButton('🔴 Сложный', callback_data='unified_difficulty_hard')
+        ],
+        # Rounds
+        [
+            InlineKeyboardButton('1️⃣', callback_data='unified_rounds_1'),
+            InlineKeyboardButton('2️⃣', callback_data='unified_rounds_2'),
+            InlineKeyboardButton('3️⃣', callback_data='unified_rounds_3'),
+            InlineKeyboardButton('4️⃣', callback_data='unified_rounds_4'),
+            InlineKeyboardButton('5️⃣', callback_data='unified_rounds_5')
+        ],
+        # Questions per round
+        [
+            InlineKeyboardButton('❓3', callback_data='unified_questions_3'),
+            InlineKeyboardButton('❓5', callback_data='unified_questions_5'),
+            InlineKeyboardButton('❓7', callback_data='unified_questions_7'),
+            InlineKeyboardButton('❓10', callback_data='unified_questions_10')
+        ],
+        # Time per question
+        [
+            InlineKeyboardButton('⏱️30с', callback_data='unified_time_30'),
+            InlineKeyboardButton('⏱️60с', callback_data='unified_time_60'),
+            InlineKeyboardButton('⏱️120с', callback_data='unified_time_120'),
+            InlineKeyboardButton('⏱️300с', callback_data='unified_time_300')
+        ],
+        # Theme and start
+        [
+            InlineKeyboardButton('📚 Задать тему', callback_data='unified_theme'),
+            InlineKeyboardButton('✅ Начать игру', callback_data='unified_start')
+        ]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    try:
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        log_error(e, f"edit_unified_settings_message", chat_id)
+        # Fallback: send new message if editing fails
+        await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode='Markdown')
