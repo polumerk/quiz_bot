@@ -42,6 +42,9 @@ class Config:
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
     DEBUG_MODE: bool = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
     
+    # Force polling for development/testing
+    FORCE_POLLING = True
+    
     @classmethod
     def load_openai_key(cls) -> str:
         """Load OpenAI API key from environment or file (for backward compatibility)"""

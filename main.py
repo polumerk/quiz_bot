@@ -202,9 +202,13 @@ async def run_bot() -> None:
     logging.info("Handlers registered successfully")
     
     # Setup and run
-    webhook_path = await setup_webhook(app)
+    webhook_path = None
+    if not config.FORCE_POLLING:
+        webhook_path = await setup_webhook(app)
+    else:
+        logging.info("🔄 FORCE_POLLING enabled - skipping webhook setup")
     
-    if webhook_path:
+    if webhook_path and not config.FORCE_POLLING:
         # Webhook mode
         logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
         try:
@@ -246,6 +250,14 @@ async def run_bot() -> None:
     else:
         # Polling mode
         logging.info("📡 Starting polling mode...")
+        
+        # Force clear any existing webhook
+        try:
+            await app.bot.delete_webhook(drop_pending_updates=True)
+            logging.info("✅ Webhook cleared for polling mode")
+        except Exception as e:
+            logging.warning(f"Could not clear webhook: {e}")
+        
         try:
             await app.run_polling(drop_pending_updates=True)
         except RuntimeError as e:
