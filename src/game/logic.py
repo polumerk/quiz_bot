@@ -41,9 +41,6 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
             get_questions_per_round=lambda cid: settings.questions_per_round
         )
         
-        import logging
-        logging.info(f"DEBUG: OpenAI returned {len(questions_data)} questions: {questions_data}")
-        
         # Check if OpenAI returned error
         if (len(questions_data) == 1 and 
             isinstance(questions_data[0], dict) and 
@@ -62,21 +59,16 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
         question_objects = []
         for i, q_data in enumerate(questions_data):
             try:
-                logging.info(f"DEBUG: Processing question {i}: {q_data}")
-                
                 # Validate question data
                 if not isinstance(q_data, dict):
-                    logging.error(f"Question {i} is not a dict: {q_data}")
                     continue
                 
                 required_fields = ['question']
                 if not all(field in q_data for field in required_fields):
-                    logging.error(f"Question {i} missing required fields: {q_data}")
                     continue
                 
                 question = Question.from_dict(q_data)
                 question_objects.append(question)
-                logging.info(f"DEBUG: Successfully parsed question {i}: {question.question}")
                 
             except Exception as e:
                 log_error(e, f"parsing question {i}: {q_data}", chat_id)
@@ -89,8 +81,6 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
                 "Попробуйте изменить тему или проверьте настройки API."
             )
             return
-        
-        logging.info(f"DEBUG: Successfully created {len(question_objects)} Question objects")
         
         game_state.questions = question_objects
         game_state.question_index = 0
@@ -158,8 +148,8 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
             )
         else:
             # Fallback: no timeout, users can answer anytime
-            import logging
-            logging.warning(f"JobQueue not available - no question timeout (Chat ID: {chat_id})")
+            # Note: Install python-telegram-bot[job-queue] for question timeouts
+            pass
         
     except Exception as e:
         log_error(e, "ask_next_question", chat_id)

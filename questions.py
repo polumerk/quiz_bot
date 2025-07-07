@@ -70,12 +70,8 @@ async def openai_generate_questions(theme: str, round_num: int, chat_id: int, ge
         "max_tokens": 1024,
         "temperature": temperature
     }
-    print(f'[LOG] Sending request to OpenAI for theme: {theme}, round: {round_num}')
-    
     async with aiohttp.ClientSession() as session:
         async with session.post('https://api.openai.com/v1/chat/completions', headers=headers, json=data) as resp:
-            print(f'[LOG] OpenAI response status: {resp.status}')
-            
             # Handle non-200 status codes
             if resp.status != 200:
                 error_text = await resp.text()
@@ -87,10 +83,7 @@ async def openai_generate_questions(theme: str, round_num: int, chat_id: int, ge
             except Exception as e:
                 response_text = await resp.text()
                 print(f'[LOG] Failed to parse OpenAI response as JSON: {e}')
-                print(f'[LOG] Raw response: {response_text[:500]}...')
                 return [{"question": "Ошибка парсинга ответа OpenAI", "answer": "N/A", "difficulty": "medium"}]
-            
-            print(f'[LOG] OpenAI response keys: {list(result.keys()) if isinstance(result, dict) else "not dict"}')
             
             # Check if OpenAI returned an error
             if not isinstance(result, dict):
@@ -107,14 +100,9 @@ async def openai_generate_questions(theme: str, round_num: int, chat_id: int, ge
             
             try:
                 text = result['choices'][0]['message']['content']
-                print(f'[LOG] OpenAI raw content: {text[:200]}...')
-                
                 text = re.sub(r'^```json\s*|```$', '', text.strip(), flags=re.MULTILINE)
                 text = text.strip()
-                print(f'[LOG] Cleaned text for JSON parsing: {text[:200]}...')
-                
                 questions = json.loads(text)
-                print(f'[LOG] Successfully parsed {len(questions)} questions from OpenAI')
                 unique_questions = []
                 history_set = set(q.strip().lower() for q in history_questions)
                 for q in questions:

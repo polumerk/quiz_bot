@@ -682,11 +682,8 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
     
     # Parse callback data
     data = query.data
-    import logging
-    logging.info(f"DEBUG: unified_settings_callback received data: '{data}' for chat {chat_id}")
     
     if not data.startswith('unified_'):
-        logging.info(f"DEBUG: Data doesn't start with 'unified_', ignoring: '{data}'")
         return
     
     # Handle special cases first (regardless of parts count)
@@ -714,8 +711,6 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
             return
         
         # Switch to registration mode and update same message
-        import logging
-        logging.info(f"DEBUG: Switching to registration mode for chat {chat_id}")
         game_state.in_registration_mode = True
         await _edit_unified_settings_message(context, chat_id, query.message.message_id)
         return
@@ -757,8 +752,6 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
         
     elif data == 'unified_back_to_settings':
         # Go back to settings mode
-        import logging
-        logging.info(f"DEBUG: Switching back to settings mode for chat {chat_id}")
         game_state.in_registration_mode = False
         await _edit_unified_settings_message(context, chat_id, query.message.message_id)
         return
@@ -766,7 +759,6 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
     # Handle regular settings changes (unified_type_value format)
     parts = data.split('_', 2)  # unified_type_value
     if len(parts) < 3:
-        logging.info(f"DEBUG: Unknown unified command: {data}")
         return
     
     setting_type = parts[1]
@@ -816,13 +808,10 @@ async def _edit_unified_settings_message(
     """Edit existing unified settings message (with optional registration)"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     import lang
-    import logging
     
     game_state = get_game_state(chat_id)
-    logging.info(f"DEBUG: _edit_unified_settings_message called for chat {chat_id}, registration_mode={game_state.in_registration_mode}")
     
     if not game_state.settings:
-        logging.info(f"DEBUG: No settings found for chat {chat_id}")
         return
     
     settings = game_state.settings
@@ -933,12 +922,9 @@ async def _edit_unified_settings_message(
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
-        import logging
-        logging.info(f"DEBUG: Message edited successfully for chat {chat_id}, registration_mode={game_state.in_registration_mode}")
+        pass  # Success
     except Exception as e:
         if "Message is not modified" in str(e):
-            import logging
-            logging.info(f"DEBUG: Message not modified error for chat {chat_id}, registration_mode={game_state.in_registration_mode}")
             # Message content is the same, but callback was processed
             return
         else:
