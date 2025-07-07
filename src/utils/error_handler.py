@@ -40,27 +40,30 @@ def handle_error(
     return user_message
 
 
-def safe_async_call(func: Callable) -> Callable:
+def safe_async_call(name: str = ""):
     """Decorator для безопасного выполнения асинхронных функций"""
-    @wraps(func)
-    async def wrapper(*args, **kwargs) -> Any:
-        try:
-            return await func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"❌ Error in {func.__name__}: {e}")
-            # Если есть update и context, попробуем отправить сообщение об ошибке
-            if len(args) >= 2:
-                update, context = args[0], args[1]
-                if hasattr(update, 'effective_chat') and update.effective_chat:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=update.effective_chat.id,
-                            text="❌ Произошла ошибка. Попробуйте еще раз."
-                        )
-                    except:
-                        pass
-            return None
-    return wrapper
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs) -> Any:
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                func_name = name or func.__name__
+                logger.error(f"❌ Error in {func_name}: {e}")
+                # Если есть update и context, попробуем отправить сообщение об ошибке
+                if len(args) >= 2:
+                    update, context = args[0], args[1]
+                    if hasattr(update, 'effective_chat') and update.effective_chat:
+                        try:
+                            await context.bot.send_message(
+                                chat_id=update.effective_chat.id,
+                                text="❌ Произошла ошибка. Попробуйте еще раз."
+                            )
+                        except:
+                            pass
+                return None
+        return wrapper
+    return decorator
 
 async def safe_delete_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int) -> bool:
     """Безопасное удаление сообщения с обработкой ошибок"""
