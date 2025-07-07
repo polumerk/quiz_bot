@@ -22,7 +22,7 @@ __all__ = [
     'change_questions_callback', 'change_time_callback', 'change_theme_callback',
     'start_game_callback', 'back_to_settings_callback', 'set_mode_callback',
     'set_difficulty_callback', 'set_rounds_callback', 'set_questions_callback',
-    'set_time_callback'
+    'set_time_callback', 'unified_settings_callback'
 ]
 
 
@@ -710,6 +710,7 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
                 return
             
             # Switch to registration mode and update same message
+            print(f"DEBUG: Switching to registration mode for chat {chat_id}")
             game_state.in_registration_mode = True
             await _edit_unified_settings_message(context, chat_id, query.message.message_id)
             return
@@ -751,6 +752,7 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
             
         elif data == 'unified_back_to_settings':
             # Go back to settings mode
+            print(f"DEBUG: Switching back to settings mode for chat {chat_id}")
             game_state.in_registration_mode = False
             await _edit_unified_settings_message(context, chat_id, query.message.message_id)
             return
@@ -819,27 +821,38 @@ async def _edit_unified_settings_message(
     theme_text = settings.theme if settings.theme else "не задана"
     
     emoji = lang.get_emoji('emoji_welcome', chat_id)
-    text = f"""{emoji} **Настройка Quiz Bot**
+    
+    # Add registration section if in registration mode
+    if game_state.in_registration_mode:
+        participants = game_state.participants
+        text = f"""{emoji} **Quiz Bot - Регистрация участников**
 
 🎮 **Режим:** {mode_text}
 🎯 **Сложность:** {difficulty_text}  
 🔄 **Раундов:** {settings.rounds}
 ❓ **Вопросов в раунде:** {settings.questions_per_round}
 ⏰ **Время на вопрос:** {settings.time_per_question} сек
-📚 **Тема:** {theme_text}"""
+📚 **Тема:** {theme_text}
 
-    # Add registration section if in registration mode
-    if game_state.in_registration_mode:
-        participants = game_state.participants
-        text += f"\n\n🎮 **Регистрация участников**\n\n"
-        text += f"**Участники ({len(participants)}):**\n"
+🚀 **Присоединяйтесь к игре!**
+
+**Участники ({len(participants)}):**"""
         if participants:
             for participant in participants:
-                text += f"• {participant.username}\n"
+                text += f"\n• {participant.username}"
         else:
-            text += "_Пока никого нет_\n"
+            text += "\n_Пока никого нет_"
     else:
-        text += "\n\n**Настройки игры:**"
+        text = f"""{emoji} **Quiz Bot - Настройки игры**
+
+🎮 **Режим:** {mode_text}
+🎯 **Сложность:** {difficulty_text}  
+🔄 **Раундов:** {settings.rounds}
+❓ **Вопросов в раунде:** {settings.questions_per_round}
+⏰ **Время на вопрос:** {settings.time_per_question} сек
+📚 **Тема:** {theme_text}
+
+⚙️ **Настройте параметры игры:**"""
     
     # Create keyboard based on current mode
     if game_state.in_registration_mode:
@@ -906,7 +919,13 @@ async def _edit_unified_settings_message(
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
+        print(f"DEBUG: Message edited successfully for chat {chat_id}, registration_mode={game_state.in_registration_mode}")
     except Exception as e:
-        log_error(e, f"edit_unified_settings_message", chat_id)
-        # Fallback: send new message if editing fails
-        await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode='Markdown')
+        if "Message is not modified" in str(e):
+            print(f"DEBUG: Message not modified error for chat {chat_id}, registration_mode={game_state.in_registration_mode}")
+            # Message content is the same, but callback was processed
+            return
+        else:
+            log_error(e, f"edit_unified_settings_message", chat_id)
+            # Fallback: send new message if editing fails
+            await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode='Markdown')
