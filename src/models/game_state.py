@@ -43,6 +43,9 @@ class GameState:
     question_start_time: Optional[float] = None
     current_question_message_id: Optional[MessageID] = None
     
+    # UI state for unified settings
+    settings_message_id: Optional[MessageID] = None
+    
     # UI state
     service_messages: List[MessageID] = field(default_factory=list)
 

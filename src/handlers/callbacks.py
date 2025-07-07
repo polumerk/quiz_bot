@@ -6,7 +6,7 @@ from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from ..models.types import ChatID, GameMode, Difficulty, UserID
+from ..models.types import ChatID, GameMode, Difficulty, UserID, MessageID
 from ..models.game_state import get_game_state, reset_game_state
 from ..utils.error_handler import safe_async_call, log_error
 from ..utils.formatters import format_round_results_team
@@ -674,6 +674,9 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
     parts = data.split('_', 2)  # unified_type_value
     if len(parts) < 3:
         if data == 'unified_theme':
+            # Save current menu message ID for later editing
+            game_state.settings_message_id = MessageID(query.message.message_id)
+            
             # Set theme input mode
             game_state.awaiting_theme = True
             await context.bot.send_message(

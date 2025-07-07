@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from ..models.types import ChatID, GameMode, Difficulty, GameSettings
+from ..models.types import ChatID, GameMode, Difficulty, GameSettings, MessageID
 from ..models.game_state import get_game_state, reset_game_state
 from ..utils.error_handler import safe_async_call, log_error
 from ..utils.formatters import format_settings_summary
@@ -309,4 +309,7 @@ async def _send_unified_settings(context: ContextTypes.DEFAULT_TYPE, chat_id: Ch
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode='Markdown')
+    msg = await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode='Markdown')
+    
+    # Save message ID for future editing
+    game_state.settings_message_id = MessageID(msg.message_id)

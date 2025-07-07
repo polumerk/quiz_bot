@@ -36,10 +36,15 @@ async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     game_state.awaiting_theme = False
     
-    # Return to unified settings with updated theme
+    # Edit the existing settings message instead of creating new one
     try:
-        from .commands import _send_unified_settings
-        await _send_unified_settings(context, chat_id)
+        if game_state.settings_message_id:
+            from .callbacks import _edit_unified_settings_message
+            await _edit_unified_settings_message(context, chat_id, game_state.settings_message_id)
+        else:
+            # Fallback to creating new settings menu if no saved message ID
+            from .commands import _send_unified_settings
+            await _send_unified_settings(context, chat_id)
     except Exception:
         # Fallback - send success message
         await context.bot.send_message(
