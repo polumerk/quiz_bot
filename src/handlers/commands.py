@@ -179,6 +179,52 @@ async def stat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
 
+@safe_async_call("debug_command")
+async def debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /debug command to toggle debug mode"""
+    if not update.effective_chat:
+        return
+        
+    chat_id = ChatID(update.effective_chat.id)
+    
+    # Toggle debug mode
+    config.DEBUG_MODE = not config.DEBUG_MODE
+    
+    status = "включен" if config.DEBUG_MODE else "выключен"
+    emoji = "🐛" if config.DEBUG_MODE else "🔇"
+    
+    game_state = get_game_state(chat_id)
+    
+    # Show current state
+    debug_info = f"""
+{emoji} **Режим отладки {status}**
+
+📊 **Текущее состояние игры:**
+• Раунд: {game_state.current_round}
+• Вопрос: {game_state.question_index + 1}
+• Ожидание ответа: {game_state.awaiting_answer}
+• Ожидание темы: {game_state.awaiting_theme}
+• Режим регистрации: {game_state.in_registration_mode}
+• ID текущего вопроса: {game_state.current_question_id or 'отсутствует'}
+• Участников: {len(game_state.participants)}
+"""
+    
+    if config.DEBUG_MODE:
+        debug_info += f"""
+🔧 **DEBUG активирован:**
+• Подробные логи таймеров
+• Логи обработки ответов
+• Информация о состоянии вопросов
+• Детали работы обработчиков
+"""
+    
+    await context.bot.send_message(
+        chat_id, 
+        debug_info,
+        parse_mode='Markdown'
+    )
+
+
 async def _send_settings_message(
     context: ContextTypes.DEFAULT_TYPE, 
     chat_id: ChatID, 

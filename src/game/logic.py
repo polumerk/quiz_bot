@@ -11,6 +11,7 @@ from ..models.types import ChatID, GameMode, Question, MessageID
 from ..models.game_state import get_game_state
 from ..utils.error_handler import safe_async_call, log_error, OpenAIError
 from ..utils.formatters import format_round_results_team
+from ..config import config
 import questions
 
 
@@ -135,16 +136,22 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
         
         # Store message ID for reply detection
         game_state.service_messages.append(MessageID(msg.message_id))
-        game_state.start_question(current_question)
+        question_id = game_state.start_question(current_question)
         # Store question message ID for reply detection
         game_state.current_question_message_id = msg.message_id
+        
+        # Debug logging
+        if config.DEBUG_MODE:
+            import logging
+            logging.info(f"🐛 DEBUG: Started question {game_state.question_index + 1}, ID: {question_id}, timeout: {settings.time_per_question}s")
         
         # Schedule timeout (only if job_queue is available)
         if context.job_queue:
             context.job_queue.run_once(
                 question_timeout,
                 settings.time_per_question,
-                chat_id=chat_id
+                chat_id=chat_id,
+                data={'question_id': question_id, 'question_index': game_state.question_index}
             )
         else:
             # Fallback: no timeout, users can answer anytime
@@ -161,20 +168,58 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
 
 @safe_async_call("question_timeout")
 async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle question timeout"""
+    """Handle question timeout with question ID validation"""
+    if not context.job:
+        return
+    
     chat_id = ChatID(context.job.chat_id)
     game_state = get_game_state(chat_id)
     
+    # Get timeout data safely
+    timeout_question_id = None
+    timeout_question_index = None
+    if hasattr(context.job, 'data') and context.job.data:
+        try:
+            timeout_question_id = context.job.data.get('question_id')  # type: ignore
+            timeout_question_index = context.job.data.get('question_index')  # type: ignore
+        except (AttributeError, TypeError):
+            pass
+    
+    # Debug logging
+    if config.DEBUG_MODE:
+        import logging
+        logging.info(f"🐛 DEBUG: Timeout triggered for question ID: {timeout_question_id}, index: {timeout_question_index}")
+        logging.info(f"🐛 DEBUG: Current question ID: {game_state.current_question_id}, index: {game_state.question_index}")
+        logging.info(f"🐛 DEBUG: Awaiting answer: {game_state.awaiting_answer}")
+    
+    # Check if this timeout is for the current question
+    if (timeout_question_id != game_state.current_question_id or 
+        timeout_question_index != game_state.question_index):
+        if config.DEBUG_MODE:
+            import logging
+            logging.info(f"🐛 DEBUG: Ignoring timeout for old question (ID mismatch or question changed)")
+        return  # This timeout is for an old question
+    
     if not game_state.awaiting_answer:
+        if config.DEBUG_MODE:
+            import logging
+            logging.info(f"🐛 DEBUG: Ignoring timeout - not awaiting answer anymore")
         return  # Question was already answered
     
     game_state.awaiting_answer = False
     current_question = game_state.current_question
     
     if not current_question:
+        if config.DEBUG_MODE:
+            import logging
+            logging.info(f"🐛 DEBUG: No current question found")
         return
     
     correct_answer = current_question.correct_answer
+    
+    if config.DEBUG_MODE:
+        import logging
+        logging.info(f"🐛 DEBUG: Processing timeout for question: {current_question.question}")
     
     await context.bot.send_message(
         chat_id,

@@ -43,6 +43,7 @@ class GameState:
     current_question: Optional[Question] = None
     question_start_time: Optional[float] = None
     current_question_message_id: Optional[MessageID] = None
+    current_question_id: Optional[str] = None  # Unique ID for timeout tracking
     
     # UI state for unified settings
     settings_message_id: Optional[MessageID] = None
@@ -96,6 +97,7 @@ class GameState:
         self.question_index += 1
         self.current_question = None
         self.question_start_time = None
+        self.current_question_id = None
         self.awaiting_answer = False
         self.awaiting_text_answer = False
 
@@ -106,11 +108,17 @@ class GameState:
         self.questions.clear()
         self.answers.clear()
 
-    def start_question(self, question: Question) -> None:
-        """Start a new question"""
+    def start_question(self, question: Question) -> str:
+        """Start a new question and return unique question ID"""
+        import uuid
+        question_id = str(uuid.uuid4())[:8]  # Short unique ID
+        
         self.current_question = question
         self.question_start_time = time.time()
+        self.current_question_id = question_id
         self.awaiting_answer = True
+        
+        return question_id
 
     def calculate_answer_time(self) -> float:
         """Calculate time taken to answer current question"""
@@ -149,6 +157,7 @@ class GameState:
         self.awaiting_language = False
         self.current_question = None
         self.question_start_time = None
+        self.current_question_id = None
         self.service_messages.clear()
 
 

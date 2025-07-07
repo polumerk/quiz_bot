@@ -14,6 +14,7 @@ __all__ = [
     'news_command',
     'stat_command',
     'lang_command',
+    'debug_command',
     'mode_callback',
     'difficulty_callback',
     'rounds_callback',

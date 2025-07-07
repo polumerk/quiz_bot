@@ -40,6 +40,7 @@ class Config:
     
     # Logging
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
+    DEBUG_MODE: bool = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
     
     @classmethod
     def load_openai_key(cls) -> str:

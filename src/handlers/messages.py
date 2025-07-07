@@ -87,6 +87,12 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     if not game_state.awaiting_answer:
         return
     
+    # Debug logging
+    from ..config import config
+    if config.DEBUG_MODE:
+        import logging
+        logging.info(f"🐛 DEBUG: Answer received for question ID: {game_state.current_question_id}, index: {game_state.question_index}")
+    
     game_state.awaiting_answer = False
     user_answer = update.message.text.strip()
     
