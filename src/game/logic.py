@@ -61,30 +61,8 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
         game_state.questions = question_objects
         game_state.question_index = 0
         
-        # Check game mode and proceed accordingly
-        if settings.mode == GameMode.TEAM:
-            await ask_next_question(context, chat_id)
-        else:
-            # Individual mode - select captain first
-            participants = game_state.participants
-            if not participants:
-                await context.bot.send_message(
-                    chat_id, 
-                    "❌ Нет участников для начала игры."
-                )
-                return
-                
-            keyboard = [
-                [InlineKeyboardButton(p.username, callback_data=f'captain_{p.user_id}')] 
-                for p in participants
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await context.bot.send_message(
-                chat_id, 
-                '👑 Выберите капитана команды:', 
-                reply_markup=reply_markup
-            )
+        # Start asking questions directly (no captain selection needed)
+        await ask_next_question(context, chat_id)
             
     except Exception as e:
         log_error(e, "start_round", chat_id)
@@ -119,30 +97,28 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
         await context.bot.send_message(chat_id, "❌ Ошибка: настройки не найдены.")
         return
     
-    # Create question message
-    keyboard = [[InlineKeyboardButton('💬 Ответить', callback_data='answer')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
+    # Create question message without buttons - answers via reply
     question_text = (
         f'❓ Вопрос {game_state.question_index + 1}:\n\n'
         f'{current_question.question}\n\n'
-        f'⏰ Время: {settings.time_per_question} сек'
+        f'⏰ Время: {settings.time_per_question} сек\n'
+        f'💬 Ответьте на это сообщение для отправки ответа'
     )
     
     try:
-        msg = await context.bot.send_message(
-            chat_id, 
-            question_text,
-            reply_markup=reply_markup
-        )
+        msg = await context.bot.send_message(chat_id, question_text)
         
+        # Store message ID for reply detection
         game_state.service_messages.append(MessageID(msg.message_id))
         game_state.start_question(current_question)
+        # Store question message ID for reply detection
+        game_state.current_question_message_id = msg.message_id
         
         # Schedule timeout
         context.job_queue.run_once(
-            lambda ctx: question_timeout(ctx, chat_id),
-            settings.time_per_question
+            question_timeout,
+            settings.time_per_question,
+            chat_id=chat_id
         )
         
     except Exception as e:
@@ -154,8 +130,9 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
 
 
 @safe_async_call("question_timeout")
-async def question_timeout(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
+async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle question timeout"""
+    chat_id = ChatID(context.job.chat_id)
     game_state = get_game_state(chat_id)
     
     if not game_state.awaiting_answer:
@@ -168,17 +145,6 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) 
         return
     
     correct_answer = current_question.correct_answer
-    
-    # Remove answer button
-    try:
-        if game_state.service_messages:
-            await context.bot.edit_message_reply_markup(
-                chat_id, 
-                game_state.service_messages[-1],
-                reply_markup=None
-            )
-    except Exception:
-        pass
     
     await context.bot.send_message(
         chat_id,

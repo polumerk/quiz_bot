@@ -1,0 +1,22 @@
+2025-07-07 08:33:19,470 - root - INFO - 🔧 Using Replit-specific entry point
+2025-07-07 08:33:19,470 - root - INFO - === QUIZ BOT STARTING ===
+2025-07-07 08:33:19,470 - root - INFO - Python version: 3.13.3 (main, Apr  8 2025, 19:55:40) [GCC 14.2.0]
+2025-07-07 08:33:19,470 - root - INFO - Environment debug info:
+2025-07-07 08:33:19,470 - root - INFO -   Is Replit: False
+2025-07-07 08:33:19,471 - root - INFO -   Replit URL: None
+2025-07-07 08:33:19,471 - root - INFO - Initializing database...
+2025-07-07 08:33:19,500 - root - INFO - Database initialized successfully
+2025-07-07 08:33:19,500 - root - INFO - OpenAI API key loaded successfully
+2025-07-07 08:33:19,500 - root - INFO - Creating Telegram application...
+2025-07-07 08:33:19,548 - root - INFO - Telegram application created successfully
+2025-07-07 08:33:19,548 - root - INFO - Registering handlers...
+2025-07-07 08:33:19,549 - root - INFO - Handlers registered successfully
+2025-07-07 08:33:19,549 - root - INFO - No webhook configured, will use polling mode
+2025-07-07 08:33:19,549 - root - INFO - 📡 Starting polling mode...
+2025-07-07 08:33:19,825 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getMe "HTTP/1.1 200 OK"
+2025-07-07 08:33:19,917 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/deleteWebhook "HTTP/1.1 200 OK"
+2025-07-07 08:33:19,918 - telegram.ext.Application - INFO - Application started
+2025-07-07 08:33:30,171 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getUpdates "HTTP/1.1 200 OK"
+2025-07-07 08:33:40,256 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getUpdates "HTTP/1.1 200 OK"
+2025-07-07 08:33:50,342 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getUpdates "HTTP/1.1 200 OK"
+2025-07-07 08:34:00,443 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot8082065832:AAFMg57PUuHJzTt2YavoqCK5pEBYlhpVdYg/getUpdates "HTTP/1.1 200 OK"

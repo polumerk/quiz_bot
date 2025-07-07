@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from ..models.types import ChatID, UserID
 from ..models.game_state import get_game_state
 from ..utils.error_handler import safe_async_call, log_error
-from .callbacks import _send_registration_message
+# from .callbacks import _send_registration_message  # Not needed anymore
 import lang
 
 
@@ -36,22 +36,32 @@ async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     game_state.awaiting_theme = False
     
-    await _send_registration_message(context, chat_id)
+    # Return to unified settings with updated theme
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
 
 
 @safe_async_call("answer_message_handler")
 async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle answer text message"""
+    """Handle answer text message via reply to question"""
     if not update.message or not update.message.chat:
         return
         
     chat_id = ChatID(update.message.chat.id)
     game_state = get_game_state(chat_id)
     
-    if not game_state.awaiting_text_answer:
+    # Check if this is a reply to current question
+    if not (update.message.reply_to_message and 
+            game_state.current_question and 
+            game_state.current_question_message_id and
+            update.message.reply_to_message.message_id == game_state.current_question_message_id):
         return
     
-    game_state.awaiting_text_answer = False
+    # Check if we're waiting for answers
+    if not game_state.awaiting_answer:
+        return
+    
+    game_state.awaiting_answer = False
     user_answer = update.message.text.strip()
     
     if not game_state.current_question:

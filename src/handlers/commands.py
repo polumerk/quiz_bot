@@ -23,8 +23,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
     chat_id = ChatID(update.effective_chat.id)
     
-    # Send welcome message with mode selection
-    await _send_settings_message(context, chat_id, 'mode')
+    # Send unified settings menu
+    await _send_unified_settings(context, chat_id)
 
 
 @safe_async_call("next_command")
@@ -226,3 +226,55 @@ async def _send_settings_message(
     
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
     await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
+
+
+async def _send_unified_settings(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
+    """Send unified settings menu in one message"""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    game_state = get_game_state(chat_id)
+    
+    # Default settings
+    current_mode = "Командный" if not game_state.settings else (
+        "Командный" if game_state.settings.mode == GameMode.TEAM else "Индивидуальный"
+    )
+    current_difficulty = "Средний" if not game_state.settings else {
+        "easy": "Легкий", "medium": "Средний", "hard": "Сложный"
+    }.get(game_state.settings.difficulty.value, "Средний")
+    current_rounds = 2 if not game_state.settings else game_state.settings.rounds
+    current_questions = 5 if not game_state.settings else game_state.settings.questions_per_round
+    current_time = 300 if not game_state.settings else game_state.settings.time_per_question
+    current_theme = "не задана" if not game_state.settings else game_state.settings.theme
+    
+    emoji = lang.get_emoji('emoji_welcome', chat_id)
+    text = f"""{emoji} **Настройка Quiz Bot**
+
+🎮 **Режим игры:** {current_mode}
+🎯 **Сложность:** {current_difficulty}  
+🔄 **Раундов:** {current_rounds}
+❓ **Вопросов в раунде:** {current_questions}
+⏰ **Время на вопрос:** {current_time} сек
+📚 **Тема:** {current_theme}
+
+Измените нужные параметры, затем введите тему и начните игру!"""
+    
+    keyboard = [
+        [
+            InlineKeyboardButton('🎮 Режим', callback_data='change_mode'),
+            InlineKeyboardButton('🎯 Сложность', callback_data='change_difficulty')
+        ],
+        [
+            InlineKeyboardButton('🔄 Раунды', callback_data='change_rounds'),
+            InlineKeyboardButton('❓ Вопросы', callback_data='change_questions')
+        ],
+        [
+            InlineKeyboardButton('⏰ Время', callback_data='change_time'),
+            InlineKeyboardButton('📚 Тема', callback_data='change_theme')
+        ],
+        [
+            InlineKeyboardButton('✅ Начать игру', callback_data='start_game')
+        ]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode='Markdown')

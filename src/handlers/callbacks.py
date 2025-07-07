@@ -13,6 +13,355 @@ from ..utils.formatters import format_round_results_team
 from .commands import _send_settings_message
 
 
+@safe_async_call("change_mode_callback")
+async def change_mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle change mode button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    
+    keyboard = [
+        [InlineKeyboardButton('Командный', callback_data='set_mode_team')],
+        [InlineKeyboardButton('Индивидуальный', callback_data='set_mode_individual')],
+        [InlineKeyboardButton('◀️ Назад', callback_data='back_to_settings')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=query.message.message_id,
+        text="🎮 Выберите режим игры:",
+        reply_markup=reply_markup
+    )
+
+
+@safe_async_call("change_difficulty_callback")
+async def change_difficulty_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle change difficulty button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    
+    keyboard = [
+        [InlineKeyboardButton('Легкий', callback_data='set_difficulty_easy')],
+        [InlineKeyboardButton('Средний', callback_data='set_difficulty_medium')],
+        [InlineKeyboardButton('Сложный', callback_data='set_difficulty_hard')],
+        [InlineKeyboardButton('◀️ Назад', callback_data='back_to_settings')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=query.message.message_id,
+        text="🎯 Выберите уровень сложности:",
+        reply_markup=reply_markup
+    )
+
+
+@safe_async_call("change_rounds_callback")
+async def change_rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle change rounds button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    
+    keyboard = [
+        [InlineKeyboardButton(str(r), callback_data=f'set_rounds_{r}') for r in range(1, 4)],
+        [InlineKeyboardButton(str(r), callback_data=f'set_rounds_{r}') for r in range(4, 7)],
+        [InlineKeyboardButton('◀️ Назад', callback_data='back_to_settings')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=query.message.message_id,
+        text="🔄 Выберите количество раундов:",
+        reply_markup=reply_markup
+    )
+
+
+@safe_async_call("change_questions_callback")
+async def change_questions_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle change questions button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    
+    keyboard = [
+        [InlineKeyboardButton(str(q), callback_data=f'set_questions_{q}') for q in range(3, 6)],
+        [InlineKeyboardButton(str(q), callback_data=f'set_questions_{q}') for q in range(6, 9)],
+        [InlineKeyboardButton(str(q), callback_data=f'set_questions_{q}') for q in range(9, 12)],
+        [InlineKeyboardButton('◀️ Назад', callback_data='back_to_settings')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=query.message.message_id,
+        text="❓ Выберите количество вопросов в раунде:",
+        reply_markup=reply_markup
+    )
+
+
+@safe_async_call("change_time_callback")
+async def change_time_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle change time button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    
+    keyboard = [
+        [InlineKeyboardButton('30 сек', callback_data='set_time_30')],
+        [InlineKeyboardButton('60 сек', callback_data='set_time_60')],
+        [InlineKeyboardButton('120 сек', callback_data='set_time_120')],
+        [InlineKeyboardButton('300 сек', callback_data='set_time_300')],
+        [InlineKeyboardButton('◀️ Назад', callback_data='back_to_settings')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await context.bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=query.message.message_id,
+        text="⏰ Выберите время на вопрос:",
+        reply_markup=reply_markup
+    )
+
+
+@safe_async_call("change_theme_callback")
+async def change_theme_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle change theme button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    game_state.awaiting_theme = True
+    
+    await context.bot.send_message(
+        chat_id, 
+        '📚 Введите тему для вопросов (например: "история", "наука", "спорт"):'
+    )
+
+
+@safe_async_call("start_game_callback")
+async def start_game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle start game button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    if not game_state.settings or not game_state.settings.theme:
+        await context.bot.send_message(
+            chat_id, 
+            '❌ Пожалуйста, сначала задайте тему для вопросов.'
+        )
+        return
+    
+    await _send_registration_message(context, chat_id)
+
+
+@safe_async_call("back_to_settings_callback")
+async def back_to_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle back to settings button"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
+
+
+# Set callbacks for the unified settings
+@safe_async_call("set_mode_callback")
+async def set_mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle set mode callback"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    mode_str = query.data.split('_')[2]
+    mode = GameMode.TEAM if mode_str == 'team' else GameMode.INDIVIDUAL
+    
+    if not game_state.settings:
+        from ..models.types import GameSettings
+        game_state.settings = GameSettings(
+            mode=mode,
+            difficulty=Difficulty.MEDIUM,
+            rounds=2,
+            questions_per_round=5,
+            time_per_question=300,
+            theme=""
+        )
+    else:
+        game_state.settings.mode = mode
+    
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
+
+
+@safe_async_call("set_difficulty_callback")
+async def set_difficulty_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle set difficulty callback"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    difficulty_str = query.data.split('_')[2]
+    difficulty = Difficulty(difficulty_str)
+    
+    if not game_state.settings:
+        from ..models.types import GameSettings
+        game_state.settings = GameSettings(
+            mode=GameMode.TEAM,
+            difficulty=difficulty,
+            rounds=2,
+            questions_per_round=5,
+            time_per_question=300,
+            theme=""
+        )
+    else:
+        game_state.settings.difficulty = difficulty
+    
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
+
+
+@safe_async_call("set_rounds_callback")
+async def set_rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle set rounds callback"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    rounds = int(query.data.split('_')[2])
+    
+    if not game_state.settings:
+        from ..models.types import GameSettings
+        game_state.settings = GameSettings(
+            mode=GameMode.TEAM,
+            difficulty=Difficulty.MEDIUM,
+            rounds=rounds,
+            questions_per_round=5,
+            time_per_question=300,
+            theme=""
+        )
+    else:
+        game_state.settings.rounds = rounds
+    
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
+
+
+@safe_async_call("set_questions_callback")
+async def set_questions_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle set questions callback"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    questions_count = int(query.data.split('_')[2])
+    
+    if not game_state.settings:
+        from ..models.types import GameSettings
+        game_state.settings = GameSettings(
+            mode=GameMode.TEAM,
+            difficulty=Difficulty.MEDIUM,
+            rounds=2,
+            questions_per_round=questions_count,
+            time_per_question=300,
+            theme=""
+        )
+    else:
+        game_state.settings.questions_per_round = questions_count
+    
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
+
+
+@safe_async_call("set_time_callback")
+async def set_time_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle set time callback"""
+    if not update.callback_query or not update.callback_query.message:
+        return
+        
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    time_per_question = int(query.data.split('_')[2])
+    
+    if not game_state.settings:
+        from ..models.types import GameSettings
+        game_state.settings = GameSettings(
+            mode=GameMode.TEAM,
+            difficulty=Difficulty.MEDIUM,
+            rounds=2,
+            questions_per_round=5,
+            time_per_question=time_per_question,
+            theme=""
+        )
+    else:
+        game_state.settings.time_per_question = time_per_question
+    
+    from .commands import _send_unified_settings
+    await _send_unified_settings(context, chat_id)
+
+
 @safe_async_call("mode_callback")
 async def mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle game mode selection"""
@@ -182,20 +531,10 @@ async def captain_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 @safe_async_call("answer_callback")
 async def answer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle answer button press"""
-    if not update.callback_query or not update.callback_query.message:
+    """Handle answer button press - NO LONGER USED (keeping for compatibility)"""
+    if not update.callback_query:
         return
-        
-    query = update.callback_query
-    await query.answer()
-    
-    chat_id = ChatID(query.message.chat.id)
-    game_state = get_game_state(chat_id)
-    
-    game_state.awaiting_answer = False
-    game_state.awaiting_text_answer = True
-    
-    await context.bot.send_message(chat_id, '💬 Введите ваш ответ:')
+    await update.callback_query.answer("Ответы теперь принимаются как reply на вопрос!")
 
 
 @safe_async_call("next_round_callback")
