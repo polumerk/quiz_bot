@@ -689,79 +689,84 @@ async def unified_settings_callback(update: Update, context: ContextTypes.DEFAUL
         logging.info(f"DEBUG: Data doesn't start with 'unified_', ignoring: '{data}'")
         return
     
+    # Handle special cases first (regardless of parts count)
+    if data == 'unified_theme':
+        # Save current menu message ID for later editing
+        game_state.settings_message_id = MessageID(query.message.message_id)
+        
+        # Set theme input mode
+        game_state.awaiting_theme = True
+        theme_msg = await context.bot.send_message(
+            chat_id, 
+            '📚 Введите тему для вопросов (например: "история", "наука", "спорт"):'
+        )
+        # Save theme request message ID for deletion
+        game_state.service_messages.append(MessageID(theme_msg.message_id))
+        return
+        
+    elif data == 'unified_start':
+        # Switch to registration mode
+        if not game_state.settings or not game_state.settings.theme:
+            await context.bot.send_message(
+                chat_id, 
+                '❌ Пожалуйста, сначала задайте тему для вопросов.'
+            )
+            return
+        
+        # Switch to registration mode and update same message
+        import logging
+        logging.info(f"DEBUG: Switching to registration mode for chat {chat_id}")
+        game_state.in_registration_mode = True
+        await _edit_unified_settings_message(context, chat_id, query.message.message_id)
+        return
+        
+    elif data == 'unified_join':
+        # Join the game (add participant)
+        user_id = UserID(query.from_user.id)
+        username = query.from_user.first_name or query.from_user.username or 'Неизвестный'
+        
+        # Check if already joined
+        if any(p.user_id == user_id for p in game_state.participants):
+            await context.bot.answer_callback_query(
+                query.id, 
+                "Вы уже зарегистрированы!", 
+                show_alert=True
+            )
+            return
+        
+        # Add participant and update message
+        game_state.add_participant(user_id, username)
+        await _edit_unified_settings_message(context, chat_id, query.message.message_id)
+        return
+        
+    elif data == 'unified_end_registration':
+        # End registration and start game
+        participants = game_state.participants
+        if len(participants) < 1:
+            await context.bot.answer_callback_query(
+                query.id,
+                "Нужен минимум 1 участник для начала игры!",
+                show_alert=True
+            )
+            return
+        
+        # Start the game
+        from ..game.logic import start_round
+        await start_round(context, chat_id)
+        return
+        
+    elif data == 'unified_back_to_settings':
+        # Go back to settings mode
+        import logging
+        logging.info(f"DEBUG: Switching back to settings mode for chat {chat_id}")
+        game_state.in_registration_mode = False
+        await _edit_unified_settings_message(context, chat_id, query.message.message_id)
+        return
+    
+    # Handle regular settings changes (unified_type_value format)
     parts = data.split('_', 2)  # unified_type_value
     if len(parts) < 3:
-        if data == 'unified_theme':
-            # Save current menu message ID for later editing
-            game_state.settings_message_id = MessageID(query.message.message_id)
-            
-            # Set theme input mode
-            game_state.awaiting_theme = True
-            theme_msg = await context.bot.send_message(
-                chat_id, 
-                '📚 Введите тему для вопросов (например: "история", "наука", "спорт"):'
-            )
-            # Save theme request message ID for deletion
-            game_state.service_messages.append(MessageID(theme_msg.message_id))
-            return
-        elif data == 'unified_start':
-            # Switch to registration mode
-            if not game_state.settings or not game_state.settings.theme:
-                await context.bot.send_message(
-                    chat_id, 
-                    '❌ Пожалуйста, сначала задайте тему для вопросов.'
-                )
-                return
-            
-            # Switch to registration mode and update same message
-            import logging
-            logging.info(f"DEBUG: Switching to registration mode for chat {chat_id}")
-            game_state.in_registration_mode = True
-            await _edit_unified_settings_message(context, chat_id, query.message.message_id)
-            return
-            
-        elif data == 'unified_join':
-            # Join the game (add participant)
-            user_id = UserID(query.from_user.id)
-            username = query.from_user.first_name or query.from_user.username or 'Неизвестный'
-            
-            # Check if already joined
-            if any(p.user_id == user_id for p in game_state.participants):
-                await context.bot.answer_callback_query(
-                    query.id, 
-                    "Вы уже зарегистрированы!", 
-                    show_alert=True
-                )
-                return
-            
-            # Add participant and update message
-            game_state.add_participant(user_id, username)
-            await _edit_unified_settings_message(context, chat_id, query.message.message_id)
-            return
-            
-        elif data == 'unified_end_registration':
-            # End registration and start game
-            participants = game_state.participants
-            if len(participants) < 1:
-                await context.bot.answer_callback_query(
-                    query.id,
-                    "Нужен минимум 1 участник для начала игры!",
-                    show_alert=True
-                )
-                return
-            
-            # Start the game
-            from ..game.logic import start_round
-            await start_round(context, chat_id)
-            return
-            
-        elif data == 'unified_back_to_settings':
-            # Go back to settings mode
-            import logging
-            logging.info(f"DEBUG: Switching back to settings mode for chat {chat_id}")
-            game_state.in_registration_mode = False
-            await _edit_unified_settings_message(context, chat_id, query.message.message_id)
-            return
+        logging.info(f"DEBUG: Unknown unified command: {data}")
         return
     
     setting_type = parts[1]
