@@ -194,14 +194,30 @@ async def run_bot() -> None:
             logging.error(f"❌ Webhook server failed: {e}")
             logging.info("🔄 Attempting fallback to polling mode...")
             
-            # Clear webhook and fallback to polling
+            # Clear webhook and create fresh app for polling
             try:
                 await app.bot.delete_webhook()
-                logging.info("Cleared webhook, starting polling...")
-                await app.run_polling(drop_pending_updates=True)
+                logging.info("Cleared webhook, creating fresh app for polling...")
+                
+                # Create a new application instance for polling to avoid state issues
+                polling_app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
+                register_handlers(polling_app)
+                
+                logging.info("📡 Starting polling with fresh application...")
+                await polling_app.run_polling(drop_pending_updates=True)
+                
             except Exception as polling_error:
                 logging.error(f"❌ Polling fallback also failed: {polling_error}")
-                raise
+                
+                # Last resort: Try simple polling without complex setup
+                logging.info("🆘 Trying basic polling as last resort...")
+                try:
+                    basic_app = ApplicationBuilder().token(config.TELEGRAM_TOKEN).build()
+                    register_handlers(basic_app) 
+                    await basic_app.run_polling(drop_pending_updates=True)
+                except Exception as final_error:
+                    logging.error(f"❌ All methods failed: {final_error}")
+                    raise
     else:
         # Polling mode
         logging.info("📡 Starting polling mode...")
