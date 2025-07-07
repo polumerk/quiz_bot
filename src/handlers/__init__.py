@@ -6,6 +6,15 @@ from .commands import *
 from .callbacks import *
 from .messages import *
 
+# Import new callback functions explicitly
+from .callbacks import (
+    change_mode_callback, change_difficulty_callback, change_rounds_callback,
+    change_questions_callback, change_time_callback, change_theme_callback,
+    start_game_callback, back_to_settings_callback, set_mode_callback,
+    set_difficulty_callback, set_rounds_callback, set_questions_callback,
+    set_time_callback
+)
+
 __all__ = [
     'start_command',
     'next_command', 
