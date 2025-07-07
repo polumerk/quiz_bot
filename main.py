@@ -82,27 +82,49 @@ def register_handlers(app) -> None:
 
 
 async def setup_webhook(app) -> Optional[str]:
-    """Setup webhook for deployment environments"""
+    """Setup webhook for deployment environments with error handling"""
+    webhook_url = None
+    webhook_path = f"/{config.TELEGRAM_TOKEN}"
+    
+    # Try to determine webhook URL
     if config.is_replit_environment():
         webhook_url = config.get_replit_webhook_url()
-        if webhook_url:
-            webhook_path = f"/{config.TELEGRAM_TOKEN}"
-            full_webhook_url = webhook_url + webhook_path
-            
-            logging.info(f"Setting up webhook: {full_webhook_url}")
-            await app.bot.set_webhook(full_webhook_url)
-            
-            return webhook_path
-    
+        logging.info(f"Detected Replit environment")
+        
+        # Debug: log environment variables
+        logging.info(f"REPLIT_URL: {os.getenv('REPLIT_URL')}")
+        logging.info(f"REPLIT_DEV_DOMAIN: {os.getenv('REPLIT_DEV_DOMAIN')}")
+        logging.info(f"REPL_SLUG: {os.getenv('REPL_SLUG')}")
+        logging.info(f"REPL_OWNER: {os.getenv('REPL_OWNER')}")
+        
     elif config.WEBHOOK_URL:
-        webhook_path = f"/{config.TELEGRAM_TOKEN}"
-        full_webhook_url = config.WEBHOOK_URL + webhook_path
-        
-        logging.info(f"Setting up webhook: {full_webhook_url}")
-        await app.bot.set_webhook(full_webhook_url)
-        
-        return webhook_path
+        webhook_url = config.WEBHOOK_URL
+        logging.info(f"Using configured webhook URL")
     
+    if webhook_url:
+        full_webhook_url = webhook_url + webhook_path
+        logging.info(f"Attempting to set webhook: {full_webhook_url}")
+        
+        try:
+            response = await app.bot.set_webhook(full_webhook_url)
+            if response:
+                logging.info("✅ Webhook set successfully")
+                return webhook_path
+            else:
+                logging.warning("⚠️ Webhook setup returned False")
+                
+        except Exception as e:
+            logging.error(f"❌ Webhook setup failed: {e}")
+            logging.info("🔄 Will fallback to polling mode")
+            
+            # Clear any existing webhook
+            try:
+                await app.bot.delete_webhook()
+                logging.info("Cleared existing webhook")
+            except Exception:
+                pass
+    
+    logging.info("No webhook configured, will use polling mode")
     return None
 
 
@@ -110,6 +132,11 @@ async def run_bot() -> None:
     """Main bot runner"""
     logging.info("=== QUIZ BOT STARTING ===")
     logging.info(f"Python version: {sys.version}")
+    
+    # Debug environment info
+    logging.info("Environment debug info:")
+    logging.info(f"  Is Replit: {config.is_replit_environment()}")
+    logging.info(f"  Replit URL: {config.get_replit_webhook_url()}")
     
     # Initialize database
     logging.info("Initializing database...")
@@ -147,20 +174,30 @@ async def run_bot() -> None:
     
     if webhook_path:
         # Webhook mode
-        logging.info(f"Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
+        logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
         try:
+            webhook_url = config.WEBHOOK_URL or config.get_replit_webhook_url()
             await app.run_webhook(
                 listen=config.WEBHOOK_LISTEN,
                 port=config.WEBHOOK_PORT,
                 url_path=webhook_path,
-                webhook_url=config.WEBHOOK_URL or config.get_replit_webhook_url()
+                webhook_url=webhook_url
             )
         except Exception as e:
-            logging.error(f"Webhook server failed: {e}")
-            raise
+            logging.error(f"❌ Webhook server failed: {e}")
+            logging.info("🔄 Attempting fallback to polling mode...")
+            
+            # Clear webhook and fallback to polling
+            try:
+                await app.bot.delete_webhook()
+                logging.info("Cleared webhook, starting polling...")
+                await app.run_polling(drop_pending_updates=True)
+            except Exception as polling_error:
+                logging.error(f"❌ Polling fallback also failed: {polling_error}")
+                raise
     else:
         # Polling mode
-        logging.info("Starting polling mode...")
+        logging.info("📡 Starting polling mode...")
         try:
             await app.run_polling(drop_pending_updates=True)
         except RuntimeError as e:
@@ -170,7 +207,7 @@ async def run_bot() -> None:
             else:
                 raise
         except Exception as e:
-            logging.error(f"Polling failed: {e}")
+            logging.error(f"❌ Polling failed: {e}")
             raise
     
     logging.info("Bot stopped")

@@ -36,9 +36,10 @@ class Config:
     WEBHOOK_PORT: int = int(os.getenv('WEBHOOK_PORT', '443'))
     WEBHOOK_LISTEN: str = os.getenv('WEBHOOK_LISTEN', '0.0.0.0')
     
-    # Replit specific
+    # Replit specific - updated for modern Replit
     REPL_SLUG: Optional[str] = os.getenv('REPL_SLUG')
-    REPL_OWNER: Optional[str] = os.getenv('REPL_OWNER')
+    REPL_OWNER: Optional[str] = os.getenv('REPL_OWNER') 
+    REPLIT_URL: Optional[str] = os.getenv('REPLIT_URL')  # Modern Replit provides this directly
     
     # Logging
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
@@ -74,14 +75,36 @@ class Config:
     @classmethod
     def is_replit_environment(cls) -> bool:
         """Check if running in Replit environment"""
-        return cls.REPL_SLUG is not None and cls.REPL_OWNER is not None
+        # Modern check: REPLIT_URL or legacy check
+        return (cls.REPLIT_URL is not None or 
+                (cls.REPL_SLUG is not None and cls.REPL_OWNER is not None) or
+                os.getenv('REPLIT_DEV_DOMAIN') is not None)
     
     @classmethod
     def get_replit_webhook_url(cls) -> Optional[str]:
         """Get webhook URL for Replit deployment"""
         if not cls.is_replit_environment():
             return None
-        return f"https://{cls.REPL_SLUG}.{cls.REPL_OWNER}.repl.co"
+            
+        # Try modern REPLIT_URL first
+        if cls.REPLIT_URL:
+            # Remove trailing slash if present
+            url = cls.REPLIT_URL.rstrip('/')
+            # Ensure https
+            if not url.startswith('http'):
+                url = f"https://{url}"
+            return url
+            
+        # Try REPLIT_DEV_DOMAIN (another modern variable)
+        dev_domain = os.getenv('REPLIT_DEV_DOMAIN')
+        if dev_domain:
+            return f"https://{dev_domain}"
+            
+        # Fallback to legacy format
+        if cls.REPL_SLUG and cls.REPL_OWNER:
+            return f"https://{cls.REPL_SLUG}.{cls.REPL_OWNER}.repl.co"
+            
+        return None
 
 
 # Global config instance
