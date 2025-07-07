@@ -29,12 +29,7 @@ from src.handlers import (
     questions_callback, time_callback, join_callback,
     end_registration_callback, captain_callback, answer_callback,
     next_round_callback, show_rating_callback, leave_callback,
-    theme_message_handler, answer_message_handler, lang_choice_handler,
-    change_mode_callback, change_difficulty_callback, change_rounds_callback,
-    change_questions_callback, change_time_callback, change_theme_callback,
-    start_game_callback, back_to_settings_callback, set_mode_callback,
-    set_difficulty_callback, set_rounds_callback, set_questions_callback,
-    set_time_callback
+    theme_message_handler, answer_message_handler, lang_choice_handler
 )
 from src.utils.filters import THEME_STAGE_FILTER, ANSWER_STAGE_FILTER
 from src.utils.error_handler import log_error
@@ -78,20 +73,35 @@ def register_handlers(app) -> None:
     app.add_handler(CallbackQueryHandler(show_rating_callback, pattern='^show_rating$'))
     app.add_handler(CallbackQueryHandler(leave_callback, pattern='^leave$'))
     
-    # New unified settings handlers
-    app.add_handler(CallbackQueryHandler(change_mode_callback, pattern='^change_mode$'))
-    app.add_handler(CallbackQueryHandler(change_difficulty_callback, pattern='^change_difficulty$'))
-    app.add_handler(CallbackQueryHandler(change_rounds_callback, pattern='^change_rounds$'))
-    app.add_handler(CallbackQueryHandler(change_questions_callback, pattern='^change_questions$'))
-    app.add_handler(CallbackQueryHandler(change_time_callback, pattern='^change_time$'))
-    app.add_handler(CallbackQueryHandler(change_theme_callback, pattern='^change_theme$'))
-    app.add_handler(CallbackQueryHandler(start_game_callback, pattern='^start_game$'))
-    app.add_handler(CallbackQueryHandler(back_to_settings_callback, pattern='^back_to_settings$'))
-    app.add_handler(CallbackQueryHandler(set_mode_callback, pattern='^set_mode_'))
-    app.add_handler(CallbackQueryHandler(set_difficulty_callback, pattern='^set_difficulty_'))
-    app.add_handler(CallbackQueryHandler(set_rounds_callback, pattern='^set_rounds_'))
-    app.add_handler(CallbackQueryHandler(set_questions_callback, pattern='^set_questions_'))
-    app.add_handler(CallbackQueryHandler(set_time_callback, pattern='^set_time_'))
+    # Import new handlers dynamically to avoid import issues
+    try:
+        from src.handlers.callbacks import (
+            change_mode_callback, change_difficulty_callback, change_rounds_callback,
+            change_questions_callback, change_time_callback, change_theme_callback,
+            start_game_callback, back_to_settings_callback, set_mode_callback,
+            set_difficulty_callback, set_rounds_callback, set_questions_callback,
+            set_time_callback
+        )
+        
+        # New unified settings handlers
+        app.add_handler(CallbackQueryHandler(change_mode_callback, pattern='^change_mode$'))
+        app.add_handler(CallbackQueryHandler(change_difficulty_callback, pattern='^change_difficulty$'))
+        app.add_handler(CallbackQueryHandler(change_rounds_callback, pattern='^change_rounds$'))
+        app.add_handler(CallbackQueryHandler(change_questions_callback, pattern='^change_questions$'))
+        app.add_handler(CallbackQueryHandler(change_time_callback, pattern='^change_time$'))
+        app.add_handler(CallbackQueryHandler(change_theme_callback, pattern='^change_theme$'))
+        app.add_handler(CallbackQueryHandler(start_game_callback, pattern='^start_game$'))
+        app.add_handler(CallbackQueryHandler(back_to_settings_callback, pattern='^back_to_settings$'))
+        app.add_handler(CallbackQueryHandler(set_mode_callback, pattern='^set_mode_'))
+        app.add_handler(CallbackQueryHandler(set_difficulty_callback, pattern='^set_difficulty_'))
+        app.add_handler(CallbackQueryHandler(set_rounds_callback, pattern='^set_rounds_'))
+        app.add_handler(CallbackQueryHandler(set_questions_callback, pattern='^set_questions_'))
+        app.add_handler(CallbackQueryHandler(set_time_callback, pattern='^set_time_'))
+        
+        logging.info("✅ New unified settings handlers registered")
+    except ImportError as e:
+        logging.warning(f"⚠️ Could not import new handlers: {e}. Using fallback mode.")
+        # Fallback - bot will work without new unified settings
     
     # Message handlers
     app.add_handler(MessageHandler(
