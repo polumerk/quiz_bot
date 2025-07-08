@@ -153,11 +153,23 @@ async def lang_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Reset the awaiting flag
     game_state.awaiting_language = False
     
+    # Import here to avoid circular imports
+    from telegram import ReplyKeyboardRemove
+    
     if "рус" in text:
         lang.set_language(chat_id, "ru")
-        await update.message.reply_text("Язык переключён на русский 🇷🇺")
+        await update.message.reply_text(
+            "Язык переключён на русский 🇷🇺", 
+            reply_markup=ReplyKeyboardRemove()
+        )
     elif "eng" in text:
         lang.set_language(chat_id, "en")
-        await update.message.reply_text("Language switched to English 🇬🇧")
+        await update.message.reply_text(
+            "Language switched to English 🇬🇧", 
+            reply_markup=ReplyKeyboardRemove()
+        )
     else:
-        await update.message.reply_text("Неизвестный язык / Unknown language")
+        await update.message.reply_text(
+            "Неизвестный язык / Unknown language", 
+            reply_markup=ReplyKeyboardRemove()
+        )
