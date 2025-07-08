@@ -123,9 +123,25 @@ async def setup_webhook(app) -> Optional[str]:
     
     if webhook_url:
         full_webhook_url = webhook_url + webhook_path
-        logging.info(f"Will use webhook: {full_webhook_url}")
-        logging.info("📋 Note: Webhook will be set by run_webhook() to avoid conflicts")
-        return webhook_path
+        logging.info(f"Setting webhook: {full_webhook_url}")
+        
+        try:
+            # Set webhook manually to ensure correct URL with token
+            response = await app.bot.set_webhook(
+                url=full_webhook_url,
+                max_connections=40,
+                drop_pending_updates=True
+            )
+            
+            if response:
+                logging.info("✅ Webhook set successfully")
+                return webhook_path
+            else:
+                logging.warning("⚠️ Webhook setup returned False")
+                
+        except Exception as e:
+            logging.error(f"❌ Webhook setup failed: {e}")
+            logging.info("🔄 Will fallback to polling mode")
     
     logging.info("No webhook configured, will use polling mode")
     return None
@@ -237,18 +253,13 @@ async def run_bot() -> None:
         # Webhook mode
         logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
         try:
-            webhook_url = config.WEBHOOK_URL or config.get_replit_webhook_url()
-            if webhook_url:
-                full_webhook_url = webhook_url + webhook_path
-                await app.run_webhook(
-                    listen=config.WEBHOOK_LISTEN,
-                    port=config.WEBHOOK_PORT,
-                    url_path=webhook_path,
-                    webhook_url=full_webhook_url
-                )
-            else:
-                logging.error("❌ No webhook URL available for webhook mode")
-                raise Exception("No webhook URL")
+            # Don't pass webhook_url to run_webhook() to avoid overwriting our webhook
+            await app.run_webhook(
+                listen=config.WEBHOOK_LISTEN,
+                port=config.WEBHOOK_PORT,
+                url_path=webhook_path
+                # Note: webhook_url parameter intentionally omitted to prevent overwriting
+            )
         except Exception as e:
             logging.error(f"❌ Webhook server failed: {e}")
             logging.info("🔄 Attempting fallback to polling mode...")
