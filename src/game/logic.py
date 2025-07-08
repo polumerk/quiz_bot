@@ -267,6 +267,42 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
             'explanation': question.explanation
         })
     
+    # Save statistics to database if it's the last round
+    if game_state.current_round >= game_state.settings.rounds:
+        try:
+            import db
+            
+            # Save game statistics
+            db.add_game_stat(
+                chat_id=int(chat_id),
+                theme=game_state.settings.theme,
+                mode=game_state.settings.mode.value,
+                rounds=game_state.settings.rounds,
+                questions_per_round=game_state.settings.questions_per_round,
+                winner_id=None  # For team mode, no specific winner
+            )
+            
+            # Update user statistics for all participants
+            for participant in game_state.participants:
+                # Calculate individual score (simplified for team mode)
+                user_score = game_state.total_score // len(game_state.participants) if game_state.participants else 0
+                is_winner = game_state.total_score > 0  # Simple win condition
+                
+                db.update_user_stats(
+                    user_id=int(participant.user_id),
+                    username=participant.username,
+                    score=user_score,
+                    win=is_winner
+                )
+            
+            if config.DEBUG_MODE:
+                import logging
+                logging.info(f"🐛 DEBUG: Saved game statistics for chat {chat_id}")
+                
+        except Exception as e:
+            log_error(e, "save_game_statistics", chat_id)
+            # Don't fail the game if statistics saving fails
+    
     # Format results for team mode
     result_text = format_round_results_team(
         results=results,
