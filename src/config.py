@@ -43,7 +43,7 @@ class Config:
     DEBUG_MODE: bool = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
     
     # Force polling for development/testing
-    FORCE_POLLING = True
+    FORCE_POLLING = False
     
     @classmethod
     def load_openai_key(cls) -> str:

@@ -126,7 +126,13 @@ async def setup_webhook(app) -> Optional[str]:
         logging.info(f"Attempting to set webhook: {full_webhook_url}")
         
         try:
-            response = await app.bot.set_webhook(full_webhook_url)
+            # Set webhook with proper parameters
+            response = await app.bot.set_webhook(
+                url=full_webhook_url,
+                max_connections=40,
+                drop_pending_updates=True
+            )
+            
             if response:
                 logging.info("✅ Webhook set successfully")
                 return webhook_path

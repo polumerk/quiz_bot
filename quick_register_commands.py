@@ -94,8 +94,8 @@ async def show_commands(token: str):
 
 def main():
     """Main function"""
-    print("🤖 Quiz Bot - Quick Commands Registration")
-    print("=" * 45)
+    print("🤖 Quiz Bot - Commands Registration")
+    print("=" * 40)
     
     # Try to get token from environment
     token = os.getenv('TELEGRAM_TOKEN')
