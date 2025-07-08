@@ -21,6 +21,18 @@ class Difficulty(Enum):
     HARD = "hard"
 
 
+class QuestionType(Enum):
+    """Types of intellectual quiz questions"""
+    STANDARD = "standard"              # Обычный вопрос
+    RIDDLE = "riddle"                 # Загадка с подвохом
+    ETYMOLOGY = "etymology"           # Этимологический вопрос
+    HISTORICAL_TWIST = "historical_twist"  # Исторический с поворотом
+    LOGIC_PUZZLE = "logic_puzzle"     # Логическая головоломка
+    CULTURAL_REFERENCE = "cultural_reference"  # Культурная отсылка
+    HIDDEN_CLUE = "hidden_clue"       # Подсказка в тексте
+    UNEXPECTED_ANSWER = "unexpected_answer"  # Неожиданный ответ
+
+
 @dataclass
 class GameSettings:
     """Game configuration settings"""
@@ -44,6 +56,14 @@ class Question:
     correct_answer: str
     difficulty: Difficulty
     explanation: str = ""
+    question_type: QuestionType = QuestionType.STANDARD
+    hints: Optional[List[str]] = None  # Подсказки для сложных вопросов
+    cultural_context: str = ""  # Культурный контекст
+    
+    def __post_init__(self):
+        """Initialize default values"""
+        if self.hints is None:
+            self.hints = []
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility"""
@@ -51,7 +71,10 @@ class Question:
             'question': self.question,
             'correct_answer': self.correct_answer,
             'difficulty': self.difficulty.value,
-            'explanation': self.explanation
+            'explanation': self.explanation,
+            'question_type': self.question_type.value,
+            'hints': self.hints,
+            'cultural_context': self.cultural_context
         }
 
     @classmethod
@@ -80,11 +103,21 @@ class Question:
         except ValueError:
             difficulty = Difficulty.MEDIUM
         
+        # Parse question type safely
+        question_type_str = data.get('question_type', 'standard')
+        try:
+            question_type = QuestionType(question_type_str)
+        except ValueError:
+            question_type = QuestionType.STANDARD
+        
         return cls(
             question=question,
             correct_answer=correct_answer,
             difficulty=difficulty,
-            explanation=data.get('explanation', '')
+            explanation=data.get('explanation', ''),
+            question_type=question_type,
+            hints=data.get('hints', []),
+            cultural_context=data.get('cultural_context', '')
         )
 
 
