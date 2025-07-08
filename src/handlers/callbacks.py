@@ -602,6 +602,20 @@ async def leave_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
     
     chat_id = ChatID(query.message.chat.id)
+    game_state = get_game_state(chat_id)
+    
+    # Remove buttons from settings message if it exists
+    if game_state.settings_message_id:
+        try:
+            await context.bot.edit_message_reply_markup(
+                chat_id=chat_id,
+                message_id=game_state.settings_message_id,
+                reply_markup=None
+            )
+        except Exception:
+            # Ignore errors if message can't be edited (e.g., too old)
+            pass
+    
     reset_game_state(chat_id)
     
     await context.bot.send_message(

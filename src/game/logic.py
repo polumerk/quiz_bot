@@ -30,7 +30,7 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
     settings = game_state.settings
     
     # Generate questions for the round
-    await context.bot.send_message(chat_id, "🧠 Генерирую вопросы...")
+    generating_msg = await context.bot.send_message(chat_id, "🧠 Генерирую вопросы...")
     
     try:
         # Generate questions using OpenAI
@@ -41,6 +41,10 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
             get_difficulty=lambda cid: settings.difficulty.value,
             get_questions_per_round=lambda cid: settings.questions_per_round
         )
+        
+        # Delete the "generating questions" message
+        from ..utils.error_handler import safe_delete_message
+        await safe_delete_message(context, chat_id, generating_msg.message_id)
         
         # Check if OpenAI returned error
         if (len(questions_data) == 1 and 
@@ -90,6 +94,10 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
         await ask_next_question(context, chat_id)
             
     except Exception as e:
+        # Delete the "generating questions" message even on error
+        from ..utils.error_handler import safe_delete_message
+        await safe_delete_message(context, chat_id, generating_msg.message_id)
+        
         log_error(e, "start_round", chat_id)
         await context.bot.send_message(
             chat_id, 
