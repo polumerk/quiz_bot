@@ -219,14 +219,41 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
         import logging
         logging.info(f"🐛 DEBUG: Processing timeout for question: {current_question.question}")
     
-    await context.bot.send_message(
-        chat_id,
-        f'⏰ Время истекло!\n\n✅ Правильный ответ: {correct_answer}'
-    )
+    # Show who answered and who didn't
+    answered_participants = list(game_state.current_question_answers.keys())
+    unanswered_participants = game_state.get_unanswered_participants()
     
-    # Add empty answer and no score
-    game_state.add_answer('')
-    game_state.add_score(0)
+    timeout_message = f'⏰ Время истекло!\n\n✅ Правильный ответ: {correct_answer}\n\n'
+    
+    if answered_participants:
+        answered_names = []
+        for user_id in answered_participants:
+            participant = game_state.get_participant(user_id)
+            if participant:
+                answered_names.append(participant.username)
+        timeout_message += f'✅ Ответили: {", ".join(answered_names)}\n'
+    
+    if unanswered_participants:
+        unanswered_names = [p.username for p in unanswered_participants]
+        timeout_message += f'❌ Не ответили: {", ".join(unanswered_names)}\n'
+        
+        # Add empty answers for participants who didn't respond
+        from ..models.types import UserID
+        for participant in unanswered_participants:
+            game_state.add_user_answer(UserID(participant.user_id), participant.username, '', False)
+    
+    await context.bot.send_message(chat_id, timeout_message)
+    
+    # If some people answered, their scores were already added
+    # For those who didn't answer, we already added empty answers with 0 points
+    
+    # Add to answers list for compatibility (use first answer or empty)
+    if answered_participants:
+        # Take first answered for compatibility
+        first_answer = list(game_state.current_question_answers.values())[0]
+        game_state.add_answer(first_answer.answer_text)
+    else:
+        game_state.add_answer('')  # No one answered
     
     # Move to next question
     game_state.next_question()

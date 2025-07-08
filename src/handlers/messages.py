@@ -68,10 +68,12 @@ async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
 @safe_async_call("answer_message_handler")
 async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle answer text message via reply to question"""
-    if not update.message or not update.message.chat:
+    if not update.message or not update.message.chat or not update.message.from_user:
         return
         
     chat_id = ChatID(update.message.chat.id)
+    user_id = UserID(update.message.from_user.id)
+    username = update.message.from_user.first_name or "Unknown"
     game_state = get_game_state(chat_id)
     
     # Check if this is a reply to current question
@@ -85,13 +87,34 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     if not game_state.awaiting_answer:
         return
     
+    # Check if user is a registered participant
+    participant = game_state.get_participant(user_id)
+    if not participant:
+        await update.message.reply_text("❌ Вы не зарегистрированы для участия в игре!")
+        return
+    
+    # Check if user already answered this question
+    if game_state.has_user_answered(user_id):
+        await update.message.reply_text("❌ Вы уже ответили на этот вопрос!")
+        return
+    
+    # In team mode, only captain can answer
+    from ..models.types import GameMode
+    if (game_state.settings and 
+        game_state.settings.mode == GameMode.TEAM and 
+        game_state.captain_id and 
+        user_id != game_state.captain_id):
+        captain_participant = game_state.get_participant(game_state.captain_id)
+        captain_name = captain_participant.username if captain_participant else "Капитан"
+        await update.message.reply_text(f"❌ В командном режиме отвечает только капитан ({captain_name})!")
+        return
+    
     # Debug logging
     from ..config import config
     if config.DEBUG_MODE:
         import logging
-        logging.info(f"🐛 DEBUG: Answer received for question ID: {game_state.current_question_id}, index: {game_state.question_index}")
+        logging.info(f"🐛 DEBUG: Answer received from {username} for question ID: {game_state.current_question_id}, index: {game_state.question_index}")
     
-    game_state.awaiting_answer = False
     user_answer = update.message.text.strip()
     
     if not game_state.current_question:
@@ -99,33 +122,50 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
         return
     
     correct_answer = game_state.current_question.correct_answer
-    question_text = game_state.current_question.question
     
     # Check if answer is correct
     is_correct = user_answer.lower() == correct_answer.lower()
     
-    # Check for fast bonus
-    answer_time = game_state.calculate_answer_time()
-    fast_bonus = 0
+    # Add user's answer to game state
+    game_state.add_user_answer(user_id, username, user_answer, is_correct)
     
-    if is_correct and game_state.is_fast_answer():
-        fast_bonus = 1
-        game_state.add_fast_bonus(1)
+    # Get the stored answer for bonus info
+    stored_answer = game_state.current_question_answers[user_id]
     
-    # Add results
+    # Update global scoring
+    if is_correct:
+        game_state.add_score(1)
+        if stored_answer.fast_bonus:
+            game_state.add_fast_bonus(1)
+    
+    # Add to answers list for compatibility
     game_state.add_answer(user_answer)
-    game_state.add_score(1 if is_correct else 0)
     
     # Format response
     status = '✅' if is_correct else '❌'
-    bonus_text = f' ⚡ Бонус за быстрый ответ!' if fast_bonus else ''
-    time_text = f' (за {int(answer_time)} сек)' if fast_bonus else ''
+    bonus_text = f' ⚡ Бонус за быстрый ответ!' if stored_answer.fast_bonus else ''
+    time_text = f' (за {int(stored_answer.time_to_answer)} сек)' if stored_answer.fast_bonus else ''
     
     await update.message.reply_text(
         f'{status} Ваш ответ: {user_answer}\n'
         f'Правильный ответ: {correct_answer}\n'
         f'{bonus_text}{time_text}'
     )
+    
+    # Check if we should wait for more answers
+    if game_state.should_wait_for_more_answers():
+        # Still waiting for more participants
+        unanswered = game_state.get_unanswered_participants()
+        if config.DEBUG_MODE:
+            unanswered_names = [p.username for p in unanswered]
+            logging.info(f"🐛 DEBUG: Still waiting for answers from: {unanswered_names}")
+        return
+    
+    # All participants answered (or it's team mode and captain answered)
+    game_state.awaiting_answer = False
+    
+    if config.DEBUG_MODE:
+        logging.info(f"🐛 DEBUG: All participants answered, moving to next question")
     
     # Move to next question
     game_state.next_question()

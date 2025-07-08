@@ -44,6 +44,7 @@ class GameState:
     question_start_time: Optional[float] = None
     current_question_message_id: Optional[MessageID] = None
     current_question_id: Optional[str] = None  # Unique ID for timeout tracking
+    current_question_answers: Dict[UserID, Answer] = field(default_factory=dict)  # Track answers per user
     
     # UI state for unified settings
     settings_message_id: Optional[MessageID] = None
@@ -98,6 +99,7 @@ class GameState:
         self.current_question = None
         self.question_start_time = None
         self.current_question_id = None
+        self.current_question_answers.clear()  # Clear answers for new question
         self.awaiting_answer = False
         self.awaiting_text_answer = False
 
@@ -139,6 +141,49 @@ class GameState:
         """Get total points (score + bonuses)"""
         return self.total_score + self.total_fast_bonus
 
+    def add_user_answer(self, user_id: UserID, username: str, answer_text: str, is_correct: bool) -> None:
+        """Add answer from specific user for current question"""
+        if not self.current_question:
+            return
+        
+        answer_time = self.calculate_answer_time()
+        fast_bonus = is_correct and self.is_fast_answer()
+        
+        answer = Answer(
+            user_id=user_id,
+            username=username,
+            answer_text=answer_text,
+            is_correct=is_correct,
+            time_to_answer=answer_time,
+            fast_bonus=fast_bonus
+        )
+        
+        self.current_question_answers[user_id] = answer
+
+    def has_user_answered(self, user_id: UserID) -> bool:
+        """Check if user has already answered current question"""
+        return user_id in self.current_question_answers
+
+    def get_unanswered_participants(self) -> Set[Participant]:
+        """Get participants who haven't answered current question yet"""
+        answered_users = set(self.current_question_answers.keys())
+        return {p for p in self.participants if p.user_id not in answered_users}
+
+    def all_participants_answered(self) -> bool:
+        """Check if all participants have answered current question"""
+        if not self.participants:
+            return False
+        return len(self.current_question_answers) >= len(self.participants)
+
+    def should_wait_for_more_answers(self) -> bool:
+        """Determine if we should wait for more answers"""
+        # In team mode, only captain answers
+        if self.settings and self.settings.mode == GameMode.TEAM:
+            return len(self.current_question_answers) == 0
+        
+        # In individual mode, wait for all participants
+        return not self.all_participants_answered()
+
     def reset(self) -> None:
         """Reset game state"""
         self.settings = None
@@ -158,6 +203,7 @@ class GameState:
         self.current_question = None
         self.question_start_time = None
         self.current_question_id = None
+        self.current_question_answers.clear()
         self.service_messages.clear()
 
 
