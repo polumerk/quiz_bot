@@ -229,7 +229,7 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
     
     await context.bot.send_message(
         chat_id,
-        f'⏰ Время истекло!\n\n✅ Правильный ответ: {correct_answer}'
+        f'⏰ Время истекло!'
     )
     
     # Add empty answer and no score

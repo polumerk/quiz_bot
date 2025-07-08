@@ -122,9 +122,7 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     time_text = f' (за {int(answer_time)} сек)' if fast_bonus else ''
     
     await update.message.reply_text(
-        f'{status} Ваш ответ: {user_answer}\n'
-        f'Правильный ответ: {correct_answer}\n'
-        f'{bonus_text}{time_text}'
+        f'{status} Ваш ответ: {user_answer}{bonus_text}{time_text}'
     )
     
     # Move to next question
