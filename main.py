@@ -201,6 +201,48 @@ async def run_bot() -> None:
     register_handlers(app)
     logging.info("Handlers registered successfully")
     
+    # Register bot commands (menu in Telegram)
+    logging.info("Registering bot commands...")
+    try:
+        # Commands as tuples (command, description)
+        commands_ru = [
+            ("start", "🎮 Начать новую игру или настроить параметры"),
+            ("next", "⏭️ Перейти к следующему раунду"),
+            ("stat", "📊 Показать статистику игр и игроков"),
+            ("lang", "🌍 Сменить язык интерфейса (русский/английский)"),
+            ("news", "📰 Новости и обновления бота"),
+            ("exit", "👋 Завершить текущую игру"),
+            ("stop", "🛑 Остановить игру"),
+            ("debug", "🐛 Переключить режим отладки")
+        ]
+        
+        commands_en = [
+            ("start", "🎮 Start new game or configure settings"),
+            ("next", "⏭️ Go to next round"),
+            ("stat", "📊 Show game and player statistics"),
+            ("lang", "🌍 Change interface language (Russian/English)"),
+            ("news", "📰 Bot news and updates"),
+            ("exit", "👋 End current game"),
+            ("stop", "🛑 Stop game"),
+            ("debug", "🐛 Toggle debug mode")
+        ]
+        
+        # Register commands for Russian users (default)
+        await app.bot.set_my_commands(commands_ru)
+        logging.info("✅ Bot commands registered for Russian language")
+        
+        # Register commands for English users
+        await app.bot.set_my_commands(commands_en, language_code="en")
+        logging.info("✅ Bot commands registered for English language")
+        
+        # Log registered commands
+        current_commands = await app.bot.get_my_commands()
+        logging.info(f"📋 Registered {len(current_commands)} bot commands")
+        
+    except Exception as e:
+        logging.warning(f"⚠️ Could not register bot commands: {e}")
+        logging.info("Bot will work without command menu")
+    
     # Setup and run
     webhook_path = None
     if not config.FORCE_POLLING:
