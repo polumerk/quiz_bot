@@ -101,7 +101,7 @@ def register_handlers(app) -> None:
     ))
 
 
-async def setup_webhook(app) -> Optional[str]:
+async def setup_webhook(app) -> Optional[tuple]:
     """Setup webhook for deployment environments with error handling"""
     webhook_url = None
     webhook_path = f"/{config.TELEGRAM_TOKEN}"
@@ -123,25 +123,11 @@ async def setup_webhook(app) -> Optional[str]:
     
     if webhook_url:
         full_webhook_url = webhook_url + webhook_path
-        logging.info(f"Setting webhook: {full_webhook_url}")
+        logging.info(f"Will use webhook: {full_webhook_url}")
         
-        try:
-            # Set webhook manually to ensure correct URL with token
-            response = await app.bot.set_webhook(
-                url=full_webhook_url,
-                max_connections=40,
-                drop_pending_updates=True
-            )
-            
-            if response:
-                logging.info("✅ Webhook set successfully")
-                return webhook_path
-            else:
-                logging.warning("⚠️ Webhook setup returned False")
-                
-        except Exception as e:
-            logging.error(f"❌ Webhook setup failed: {e}")
-            logging.info("🔄 Will fallback to polling mode")
+        # DON'T set webhook manually - let run_webhook() do it with correct URL
+        logging.info("✅ Webhook configuration ready")
+        return webhook_path, full_webhook_url
     
     logging.info("No webhook configured, will use polling mode")
     return None
@@ -243,22 +229,23 @@ async def run_bot() -> None:
         logging.info("Bot will work without command menu")
     
     # Setup and run
-    webhook_path = None
+    webhook_config = None
     if not config.FORCE_POLLING:
-        webhook_path = await setup_webhook(app)
+        webhook_config = await setup_webhook(app)
     else:
         logging.info("🔄 FORCE_POLLING enabled - skipping webhook setup")
     
-    if webhook_path and not config.FORCE_POLLING:
+    if webhook_config and not config.FORCE_POLLING:
         # Webhook mode
+        webhook_path, full_webhook_url = webhook_config
         logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
         try:
-            # Don't pass webhook_url to run_webhook() to avoid overwriting our webhook
+            # Pass the full webhook URL so run_webhook() sets it correctly
             await app.run_webhook(
                 listen=config.WEBHOOK_LISTEN,
                 port=config.WEBHOOK_PORT,
-                url_path=webhook_path
-                # Note: webhook_url parameter intentionally omitted to prevent overwriting
+                url_path=webhook_path,
+                webhook_url=full_webhook_url  # This will set the correct URL with token
             )
         except Exception as e:
             logging.error(f"❌ Webhook server failed: {e}")
