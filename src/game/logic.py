@@ -122,11 +122,18 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
         return
     
     # Create question message without buttons - answers via reply
+    # Calculate padding for alignment in monospace font
+    left_part = f'❓ Вопрос {game_state.question_index + 1}'
+    right_part = f'⏰ {settings.time_per_question} сек'
+    # Use fixed width for consistent alignment (total width ~40 chars)
+    total_width = 40
+    padding_needed = total_width - len(left_part) - len(right_part)
+    padding = ' ' * max(1, padding_needed)  # At least 1 space
+    
     question_text = (
-        f'❓ Вопрос {game_state.question_index + 1}:\n\n'
+        f'`{left_part}{padding}{right_part}`\n\n'
         f'{current_question.question}\n\n'
-        f'⏰ Время: {settings.time_per_question} сек\n'
-        f'💬 Ответьте на это сообщение для отправки ответа'
+        f'💬 Как ответить: reply на это сообщение'
     )
     
     try:
