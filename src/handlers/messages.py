@@ -12,53 +12,6 @@ from ..utils.error_handler import safe_async_call, log_error
 import lang
 
 
-@safe_async_call("show_question_results")
-async def show_question_results(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID, is_timeout: bool = False) -> None:
-    """Show results for all participants after question is complete"""
-    game_state = get_game_state(chat_id)
-    
-    if not game_state.current_question:
-        return
-    
-    correct_answer = game_state.current_question.correct_answer
-    
-    # Build results message
-    if is_timeout:
-        results_text = f'⏰ Время истекло!\n\n'
-    else:
-        results_text = f'✅ Все участники ответили!\n\n'
-    
-    results_text += f'🎯 Правильный ответ: {correct_answer}\n\n'
-    results_text += f'📊 Результаты участников:\n'
-    
-    # Show results for each participant
-    # In team mode, only show captain's answer
-    if game_state.settings and game_state.settings.mode == GameMode.TEAM:
-        if game_state.captain_id and game_state.captain_id in game_state.current_question_answers:
-            answer = game_state.current_question_answers[game_state.captain_id]
-            status = '✅' if answer.is_correct else '❌'
-            bonus_text = ' ⚡' if answer.fast_bonus else ''
-            time_text = f' ({int(answer.time_to_answer)}с)' if answer.fast_bonus else ''
-            
-            results_text += f'{status} {answer.username} (капитан): {answer.answer_text}{bonus_text}{time_text}\n'
-        else:
-            results_text += f'❌ Капитан не ответил\n'
-    else:
-        # Individual mode - show all participants
-        for participant in game_state.participants:
-            user_id = UserID(participant.user_id)
-            if user_id in game_state.current_question_answers:
-                answer = game_state.current_question_answers[user_id]
-                status = '✅' if answer.is_correct else '❌'
-                bonus_text = ' ⚡' if answer.fast_bonus else ''
-                time_text = f' ({int(answer.time_to_answer)}с)' if answer.fast_bonus else ''
-                
-                results_text += f'{status} {answer.username}: {answer.answer_text}{bonus_text}{time_text}\n'
-            else:
-                results_text += f'❌ {participant.username}: не ответил\n'
-    
-    await context.bot.send_message(chat_id, results_text)
-
 
 @safe_async_call("theme_message_handler")
 async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -193,7 +146,7 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     if game_state.settings and game_state.settings.mode == GameMode.TEAM:
         await update.message.reply_text(
             f'📝 Ваш ответ принят: {user_answer}\n'
-            f'⏳ Команда ожидает результатов...'
+            f'⏳ Переходим к следующему вопросу...'
         )
     else:
         unanswered_count = len(game_state.get_unanswered_participants())
@@ -205,7 +158,7 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
         else:
             await update.message.reply_text(
                 f'📝 Ваш ответ принят: {user_answer}\n'
-                f'⏳ Подводим итоги...'
+                f'⏳ Переходим к следующему вопросу...'
             )
     
     # Check if we should wait for more answers
@@ -221,10 +174,7 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     game_state.awaiting_answer = False
     
     if config.DEBUG_MODE:
-        logging.info(f"🐛 DEBUG: All participants answered, showing results")
-    
-    # Show results for all participants
-    await show_question_results(context, chat_id, is_timeout=False)
+        logging.info(f"🐛 DEBUG: All participants answered, moving to next question")
     
     # Move to next question
     game_state.next_question()

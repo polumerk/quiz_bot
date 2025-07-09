@@ -227,9 +227,8 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
         for participant in unanswered_participants:
             game_state.add_user_answer(UserID(participant.user_id), participant.username, '', False)
     
-    # Show results for all participants using unified function
-    from ..handlers.messages import show_question_results
-    await show_question_results(context, chat_id, is_timeout=True)
+    # Notify about timeout and move to next question
+    await context.bot.send_message(chat_id, "⏰ Время истекло! Переходим к следующему вопросу...")
     
     # If some people answered, their scores were already added
     # For those who didn't answer, we already added empty answers with 0 points
