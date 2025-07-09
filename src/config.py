@@ -30,7 +30,7 @@ class Config:
     
     # Webhook Configuration (for deployment)
     WEBHOOK_URL: Optional[str] = os.getenv('WEBHOOK_URL')
-    WEBHOOK_PORT: int = int(os.getenv('WEBHOOK_PORT', '443'))
+    WEBHOOK_PORT: int = int(os.getenv('WEBHOOK_PORT', '8080'))  # Changed from 443 to 8080 for Replit
     WEBHOOK_LISTEN: str = os.getenv('WEBHOOK_LISTEN', '0.0.0.0')
     
     # Replit specific - updated for modern Replit
@@ -152,6 +152,16 @@ class Config:
             return f"https://{cls.REPL_SLUG}.{cls.REPL_OWNER}.repl.co"
             
         return None
+
+    @classmethod
+    def get_webhook_port(cls) -> int:
+        """Get the appropriate webhook port for the current environment"""
+        if cls.is_replit_environment():
+            # Replit uses port 8080 for HTTP servers (HTTPS termination handled by Replit)
+            return int(os.getenv('WEBHOOK_PORT', '8080'))
+        else:
+            # Other environments might use 443 or other ports
+            return int(os.getenv('WEBHOOK_PORT', '443'))
 
 
 # Global config instance
