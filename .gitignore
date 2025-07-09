@@ -1,6 +1,8 @@
 # Logs
 *.log
 quiz_bot.log
+logs/
+*.out
 
 # Python cache
 __pycache__/
@@ -25,13 +27,20 @@ openai_key.txt
 ehthumbs.db
 Thumbs.db
 
-# Database
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+quizbot.db
+*.db-journal
+*.db-shm
+*.db-wal
 
 # Temporary files
 *.tmp
 *.bak
 *.swp
 *~
+
+# Project specific files that should not be in git
+project_analysis.md
