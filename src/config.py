@@ -42,8 +42,53 @@ class Config:
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
     DEBUG_MODE: bool = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
     
-    # Force polling for development/testing
-    FORCE_POLLING = True
+    # Deployment mode configuration
+    DEPLOYMENT_MODE: str = os.getenv('DEPLOYMENT_MODE', 'auto')  # auto, webhook, polling
+    
+    @classmethod
+    def should_use_webhook(cls) -> bool:
+        """Determine if webhook should be used based on environment"""
+        # Explicit polling mode
+        if cls.DEPLOYMENT_MODE.lower() == 'polling':
+            return False
+            
+        # Explicit webhook mode
+        if cls.DEPLOYMENT_MODE.lower() == 'webhook':
+            return True
+            
+        # Auto mode: use webhook if URL is configured
+        if cls.DEPLOYMENT_MODE.lower() == 'auto':
+            # Check if webhook URL is explicitly set
+            if cls.WEBHOOK_URL:
+                return True
+                
+            # Check if running in Replit with available URL
+            if cls.is_replit_environment() and cls.get_replit_webhook_url():
+                return True
+                
+            # Default to polling for safety
+            return False
+            
+        # Unknown mode, default to polling
+        return False
+    
+    @classmethod
+    def get_deployment_info(cls) -> str:
+        """Get deployment mode information for logging"""
+        mode = cls.DEPLOYMENT_MODE.lower()
+        
+        if mode == 'polling':
+            return "📡 Polling mode (explicit)"
+        elif mode == 'webhook':
+            return "🌐 Webhook mode (explicit)"
+        elif mode == 'auto':
+            if cls.should_use_webhook():
+                url = cls.WEBHOOK_URL or cls.get_replit_webhook_url()
+                return f"🌐 Webhook mode (auto-detected: {url})"
+            else:
+                return "📡 Polling mode (auto-detected, no webhook URL)"
+        else:
+            return f"📡 Polling mode (unknown DEPLOYMENT_MODE: {mode})"
     
     @classmethod
     def load_openai_key(cls) -> str:

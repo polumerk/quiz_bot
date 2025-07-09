@@ -203,12 +203,15 @@ async def run_bot() -> None:
     
     # Setup and run
     webhook_path = None
-    if not config.FORCE_POLLING:
+    deployment_info = config.get_deployment_info()
+    logging.info(f"🚀 Deployment mode: {deployment_info}")
+    
+    if config.should_use_webhook():
         webhook_path = await setup_webhook(app)
     else:
-        logging.info("🔄 FORCE_POLLING enabled - skipping webhook setup")
+        logging.info("� Polling mode selected - skipping webhook setup")
     
-    if webhook_path and not config.FORCE_POLLING:
+    if webhook_path and config.should_use_webhook():
         # Webhook mode
         logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
         try:
