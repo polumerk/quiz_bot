@@ -143,22 +143,29 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     
     # Confirm answer received without revealing correctness
     # Different message for team vs individual mode
+    # Send confirmation with reply to user's answer message
     if game_state.settings and game_state.settings.mode == GameMode.TEAM:
-        await update.message.reply_text(
-            f'📝 Ваш ответ принят: {user_answer}\n'
-            f'⏳ Переходим к следующему вопросу...'
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f'📝 Ваш ответ принят: {user_answer}\n'
+                 f'⏳ Переходим к следующему вопросу...',
+            reply_to_message_id=update.message.message_id
         )
     else:
         unanswered_count = len(game_state.get_unanswered_participants())
         if unanswered_count > 0:
-            await update.message.reply_text(
-                f'📝 Ваш ответ принят: {user_answer}\n'
-                f'⏳ Ожидаю ответов от {unanswered_count} участников...'
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f'📝 Ваш ответ принят: {user_answer}\n'
+                     f'⏳ Ожидаю ответов от {unanswered_count} участников...',
+                reply_to_message_id=update.message.message_id
             )
         else:
-            await update.message.reply_text(
-                f'📝 Ваш ответ принят: {user_answer}\n'
-                f'⏳ Переходим к следующему вопросу...'
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f'📝 Ваш ответ принят: {user_answer}\n'
+                     f'⏳ Переходим к следующему вопросу...',
+                reply_to_message_id=update.message.message_id
             )
     
     # Check if we should wait for more answers
