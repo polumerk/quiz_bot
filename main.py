@@ -215,12 +215,13 @@ async def run_bot() -> None:
         # Webhook mode
         logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
         try:
-            webhook_url = config.WEBHOOK_URL or config.get_replit_webhook_url()
+            # Don't pass webhook_url to run_webhook - we already set it manually
+            # This prevents the library from overriding our correct webhook with token
             await app.run_webhook(
                 listen=config.WEBHOOK_LISTEN,
                 port=config.WEBHOOK_PORT,
-                url_path=webhook_path,
-                webhook_url=webhook_url
+                url_path=webhook_path
+                # webhook_url parameter removed to prevent double webhook setup
             )
         except Exception as e:
             logging.error(f"❌ Webhook server failed: {e}")
