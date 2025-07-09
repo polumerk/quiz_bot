@@ -44,3 +44,4 @@ quizbot.db
 
 # Project specific files that should not be in git
 project_analysis.md
+GIT_IGNORE_SETUP.md
