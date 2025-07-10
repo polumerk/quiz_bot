@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 from src.config import config
 import traceback
+from src.utils.question_types import determine_question_type, QuestionType, get_question_type_prompt
 
 # Временные заглушки для классов
 class QualityChecker:
@@ -39,27 +40,6 @@ class FeedbackSystem:
         return {"error": "Not implemented yet"}
     def suggest_improvements(self):
         return []
-
-class QuestionType:
-    FACTUAL = "factual"
-    LOGICAL = "logical"
-    ASSOCIATIVE = "associative"
-    CHRONOLOGICAL = "chronological"
-    GEOGRAPHICAL = "geographical"
-    MATHEMATICAL = "mathematical"
-    CULTURAL = "cultural"
-    SCIENTIFIC = "scientific"
-    HISTORICAL = "historical"
-    SPORTS = "sports"
-    
-    def __init__(self, value):
-        self.value = value
-
-def determine_question_type(theme):
-    return QuestionType("factual")
-
-def get_question_type_prompt(question_type, theme):
-    return f"Тип вопроса: {question_type.value}, Тема: {theme}"
 
 class EnhancedQuestionGenerator:
     """Улучшенный генератор вопросов с проверкой качества"""
