@@ -9,10 +9,8 @@ from typing import Dict, List, Any
 # Импортируем новые системы
 try:
     from src.utils.question_types import QuestionType, determine_question_type, get_question_type_prompt
-    from src.utils.quality_checker import QualityChecker
     from src.utils.analytics import QuestionAnalytics
     from src.utils.feedback_system import FeedbackSystem
-    from src.utils.enhanced_questions import EnhancedQuestionGenerator
     from src.utils.integration_helper import integration_helper
 except ImportError as e:
     print(f"Ошибка импорта: {e}")
@@ -47,38 +45,6 @@ def test_question_types():
     print(f"📝 Промпт для исторических вопросов: {prompt[:100]}...")
     
     print("✅ Тест системы типов вопросов завершен\n")
-
-def test_quality_checker():
-    """Тест системы проверки качества"""
-    print("🧪 Тестирование системы проверки качества...")
-    
-    checker = QualityChecker()
-    
-    # Тестовые вопросы
-    test_questions = [
-        {
-            "question": "В каком году была Куликовская битва?",
-            "answer": "1380",
-            "explanation": "Куликовская битва произошла 8 сентября 1380 года"
-        },
-        {
-            "question": "Какой ваш любимый цвет?",
-            "answer": "Синий",
-            "explanation": "Это субъективный вопрос"
-        },
-        {
-            "question": "Что произошло примерно в 15 веке?",
-            "answer": "Много событий",
-            "explanation": "Неоднозначный вопрос"
-        }
-    ]
-    
-    for i, question in enumerate(test_questions, 1):
-        score, issues = checker.check_question_quality(question)
-        status = "✅" if score >= 7 else "❌"
-        print(f"{status} Вопрос {i}: {score}/10 - {', '.join(issues) if issues else 'OK'}")
-    
-    print("✅ Тест системы проверки качества завершен\n")
 
 def test_analytics():
     """Тест системы аналитики"""
@@ -152,8 +118,6 @@ async def test_enhanced_generator():
     """Тест улучшенного генератора вопросов"""
     print("🧪 Тестирование улучшенного генератора вопросов...")
     
-    generator = EnhancedQuestionGenerator()
-    
     # Тестовые настройки
     test_settings = {
         "theme": "история",
@@ -163,7 +127,8 @@ async def test_enhanced_generator():
     
     # Генерируем вопросы (если есть API ключ)
     try:
-        quality_questions, rejected_questions = await generator.generate_questions_with_quality_check(
+        # Вместо generator = EnhancedQuestionGenerator() используем integration_helper
+        quality_questions, rejected_questions = await integration_helper.enhanced_generator.generate_questions_with_quality_check(
             test_settings, max_attempts=1
         )
         
@@ -222,7 +187,6 @@ async def main():
     
     # Запускаем все тесты
     test_question_types()
-    test_quality_checker()
     test_analytics()
     test_feedback_system()
     await test_enhanced_generator()
@@ -231,7 +195,6 @@ async def main():
     print("🎉 Все тесты завершены!")
     print("\n📋 Сводка реализованных улучшений:")
     print("✅ Система типов вопросов (10 типов)")
-    print("✅ Система проверки качества")
     print("✅ Система аналитики")
     print("✅ Система обратной связи")
     print("✅ Улучшенный генератор вопросов")

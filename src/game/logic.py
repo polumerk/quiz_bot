@@ -35,7 +35,8 @@ async def preload_next_question(game_state, chat_id):
             round_num=game_state.current_round,
             chat_id=chat_id,
             get_difficulty=lambda cid: settings.difficulty.value,
-            get_questions_per_round=lambda cid: 1
+            get_questions_per_round=lambda cid: 1,
+            question_type=question_type
         )
         if question_data and isinstance(question_data, list) and question_data[0].get('question'):
             question = Question.from_dict(question_data[0])
@@ -98,7 +99,8 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
             round_num=game_state.current_round,
             chat_id=chat_id,
             get_difficulty=lambda cid: settings.difficulty.value,
-            get_questions_per_round=lambda cid: 1
+            get_questions_per_round=lambda cid: 1,
+            question_type=question_type
         )
         if not question_data or not isinstance(question_data, list) or not question_data[0].get('question'):
             logging.warning(f"[ASK] (SYNC) Не удалось сгенерировать вопрос для типа: {question_type}")

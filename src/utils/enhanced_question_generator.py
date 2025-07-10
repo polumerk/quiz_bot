@@ -68,6 +68,7 @@ class EnhancedQuestionGenerator:
     async def generate_questions_with_quality_check(
         self, 
         settings: Dict[str, Any],
+        question_type=None,
         max_attempts: int = 3
     ) -> Tuple[List[Dict], List[Dict]]:
         print('[DEBUG] [generator] generate_questions_with_quality_check called', settings)
@@ -80,7 +81,8 @@ class EnhancedQuestionGenerator:
             difficulty = settings.get('difficulty', 'medium')
             questions_count = settings.get('questions_count', 10)
             print(f'[DEBUG] [generator] theme={theme}, difficulty={difficulty}, questions_count={questions_count}')
-            question_type = determine_question_type(theme)
+            if question_type is None:
+                question_type = determine_question_type(theme)
             print(f'[DEBUG] [generator] question_type={question_type}')
             raw_questions = await self._generate_raw_questions(settings, question_type)
             print(f'[DEBUG] [generator] raw_questions={raw_questions}')

@@ -47,7 +47,8 @@ class IntegrationHelper:
         round_num: int, 
         chat_id: int, 
         get_difficulty, 
-        get_questions_per_round
+        get_questions_per_round,
+        question_type=None
     ) -> List[Dict[str, Any]]:
         print('[DEBUG] [integration_helper] generate_enhanced_questions: вход')
         settings = {
@@ -62,7 +63,7 @@ class IntegrationHelper:
         print('[DEBUG] [integration_helper] repr(enhanced_generator):', repr(self.enhanced_generator))
         try:
             print('[DEBUG] [integration_helper] call generate_questions_with_quality_check')
-            quality_questions, rejected_questions = await self.enhanced_generator.generate_questions_with_quality_check(settings)
+            quality_questions, rejected_questions = await self.enhanced_generator.generate_questions_with_quality_check(settings, question_type=question_type)
             print('[DEBUG] [integration_helper] got quality_questions:', quality_questions)
             print('[DEBUG] [integration_helper] got rejected_questions:', rejected_questions)
         except Exception as e:

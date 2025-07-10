@@ -17,11 +17,7 @@ from .formatters import (
 
 # Новые модули для улучшенной системы вопросов
 try:
-    from .quality_checker import QualityChecker
     from .question_types import QuestionType, determine_question_type, get_question_type_prompt
-    from .analytics import QuestionAnalytics
-    from .feedback_system import FeedbackSystem
-    from .enhanced_questions import EnhancedQuestionGenerator
     from .integration_helper import integration_helper
 except ImportError:
     # Если модули еще не созданы, создаем заглушки
@@ -41,12 +37,8 @@ __all__ = [
     'format_settings_summary', 'format_participant_list',
     
     # Enhanced question system
-    'QualityChecker',
     'QuestionType',
     'determine_question_type',
     'get_question_type_prompt',
-    'QuestionAnalytics',
-    'FeedbackSystem',
-    'EnhancedQuestionGenerator',
     'integration_helper'
 ]
