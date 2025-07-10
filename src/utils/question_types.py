@@ -4,6 +4,7 @@
 
 from enum import Enum
 from typing import Dict, List, Optional
+import random
 
 class QuestionType(Enum):
     """Типы вопросов для интеллектуальных игр"""
@@ -188,3 +189,14 @@ def get_all_question_types() -> List[QuestionType]:
 def get_question_type_description(question_type: QuestionType) -> str:
     """Получить описание типа вопроса"""
     return QUESTION_TYPE_DESCRIPTIONS[question_type]["description"]
+
+def get_random_question_type(theme: str = "") -> QuestionType:
+    """Случайно выбрать тип вопроса (с приоритетом по теме, если возможно)"""
+    # Сначала пробуем тематический тип
+    thematic_type = determine_question_type(theme)
+    all_types = get_all_question_types()
+    # 50% шанс выбрать тематический, 50% — любой другой
+    if random.random() < 0.5:
+        return thematic_type
+    else:
+        return random.choice(all_types)
