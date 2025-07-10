@@ -26,7 +26,7 @@ class GameState:
     # Game progress
     current_round: int = 1
     question_index: int = 0
-    questions: List[Question] = field(default_factory=list)
+    # questions: List[Question] = field(default_factory=list)  # Удалено для ленивой генерации
     answers: List[str] = field(default_factory=list)
     
     # Store all answers by question index for results display
@@ -41,6 +41,7 @@ class GameState:
     awaiting_answer: bool = False
     awaiting_text_answer: bool = False
     awaiting_language: bool = False
+    is_generating_question: bool = False  # Новый флаг для асинхронной генерации
     
     # Current question state
     current_question: Optional[Question] = None
@@ -109,14 +110,17 @@ class GameState:
         self.current_question_answers.clear()  # Clear answers for new question
         self.awaiting_answer = False
         self.awaiting_text_answer = False
+        self.is_generating_question = False  # Сброс флага генерации
 
     def next_round(self) -> None:
         """Move to next round"""
         self.current_round += 1
         self.question_index = 0
-        self.questions.clear()
+        # self.questions.clear()  # Удалено
         self.answers.clear()
         self.all_question_answers.clear()  # Clear stored answers for new round
+        self.current_question = None
+        self.is_generating_question = False
 
     def start_question(self, question: Question) -> str:
         """Start a new question and return unique question ID"""
@@ -200,7 +204,7 @@ class GameState:
         self.session_admin = None
         self.current_round = 1
         self.question_index = 0
-        self.questions.clear()
+        # self.questions.clear() # Удалено
         self.answers.clear()
         self.total_score = 0
         self.total_fast_bonus = 0
@@ -280,16 +284,6 @@ def get_question_index(chat_id: ChatID) -> int:
 def set_question_index(chat_id: ChatID, value: int) -> None:
     """Set question index (backward compatibility)"""
     get_game_state(chat_id).question_index = value
-
-
-def get_questions(chat_id: ChatID) -> List[Question]:
-    """Get questions list (backward compatibility)"""
-    return get_game_state(chat_id).questions
-
-
-def set_questions(chat_id: ChatID, questions: List[Question]) -> None:
-    """Set questions list (backward compatibility)"""
-    get_game_state(chat_id).questions = questions
 
 
 def get_answers(chat_id: ChatID) -> List[str]:
