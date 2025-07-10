@@ -14,11 +14,40 @@ from ..utils.formatters import format_round_results_team, format_round_results_i
 from ..utils.integration_helper import integration_helper
 from ..config import config
 import questions
+import asyncio
+
+
+async def preload_next_question(game_state, chat_id):
+    """Асинхронно генерирует следующий вопрос и сохраняет его в preloaded_question"""
+    if game_state.is_generating_question:
+        return
+    game_state.is_generating_question = True
+    try:
+        from src.utils.question_types import get_random_question_type
+        settings = game_state.settings
+        if not settings:
+            return
+        question_type = get_random_question_type(settings.theme)
+        question_data = await integration_helper.generate_enhanced_questions(
+            theme=settings.theme,
+            round_num=game_state.current_round,
+            chat_id=chat_id,
+            get_difficulty=lambda cid: settings.difficulty.value,
+            get_questions_per_round=lambda cid: 1
+        )
+        if question_data and isinstance(question_data, list) and question_data[0].get('question'):
+            question = Question.from_dict(question_data[0])
+            game_state.preloaded_question = question
+    except Exception as e:
+        from ..utils.error_handler import log_error
+        log_error(e, "preload_next_question", chat_id)
+    finally:
+        game_state.is_generating_question = False
 
 
 @safe_async_call("start_round")
 async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
-    """Start a new round of the game"""
+    """Start a new round of the game (ленивая генерация вопросов)"""
     game_state = get_game_state(chat_id)
     
     if not game_state.settings:
@@ -29,147 +58,71 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
         return
     
     settings = game_state.settings
-    
-    # Generate questions for the round
-    await context.bot.send_message(chat_id, "🧠 Генерирую вопросы...")
-    
-    try:
-        # Generate questions using enhanced generator
-        questions_data = await integration_helper.generate_enhanced_questions(
-            theme=settings.theme,
-            round_num=game_state.current_round,
-            chat_id=chat_id,
-            get_difficulty=lambda cid: settings.difficulty.value,
-            get_questions_per_round=lambda cid: settings.questions_per_round
-        )
-        
-        # Check if OpenAI returned error
-        if (len(questions_data) == 1 and 
-            isinstance(questions_data[0], dict) and 
-            "Ошибка генерации вопросов" in str(questions_data[0].get('question', ''))):
-            await context.bot.send_message(
-                chat_id, 
-                "❌ Ошибка генерации вопросов через OpenAI. Проверьте:\n"
-                "• Корректность API ключа\n"
-                "• Доступность OpenAI API\n"
-                "• Тему (попробуйте другую)\n\n"
-                "Попробуйте позже или измените настройки."
-            )
-            return
-        
-        # Convert to Question objects
-        question_objects = []
-        for i, q_data in enumerate(questions_data):
-            try:
-                # Validate question data
-                if not isinstance(q_data, dict):
-                    continue
-                
-                required_fields = ['question']
-                if not all(field in q_data for field in required_fields):
-                    continue
-                
-                question = Question.from_dict(q_data)
-                question_objects.append(question)
-                
-            except Exception as e:
-                log_error(e, f"parsing question {i}: {q_data}", chat_id)
-                continue
-        
-        if not question_objects:
-            await context.bot.send_message(
-                chat_id, 
-                "❌ Не удалось создать вопросы из ответа OpenAI.\n"
-                "Попробуйте изменить тему или проверьте настройки API."
-            )
-            return
-        
-        game_state.questions = question_objects
-        game_state.question_index = 0
-        
-        # Start asking questions directly (no captain selection needed)
-        await ask_next_question(context, chat_id)
-            
-    except Exception as e:
-        log_error(e, "start_round", chat_id)
-        await context.bot.send_message(
-            chat_id, 
-            f"❌ Ошибка при запуске раунда: {str(e)}\n"
-            "Попробуйте позже или проверьте настройки."
-        )
+    game_state.question_index = 0
+    game_state.current_question = None
+    game_state.question_history.clear()
+    await context.bot.send_message(chat_id, "🧠 Генерирую первый вопрос...")
+    await ask_next_question(context, chat_id)
 
 
 @safe_async_call("ask_next_question")
 async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
-    """Ask the next question in the round"""
+    """Ленивая генерация и показ следующего вопроса с preloading"""
     game_state = get_game_state(chat_id)
-    
-    # Clean up service messages
-    from ..utils.error_handler import safe_delete_message
-    for msg_id in game_state.service_messages:
-        await safe_delete_message(context, chat_id, msg_id)
-    game_state.service_messages.clear()
-    
-    # Check if round is finished
-    if game_state.question_index >= len(game_state.questions):
-        await finish_round(context, chat_id)
-        return
-    
-    current_question = game_state.questions[game_state.question_index]
     settings = game_state.settings
-    
     if not settings:
         await context.bot.send_message(chat_id, "❌ Ошибка: настройки не найдены.")
         return
-    
-    # Create question message without buttons - answers via reply
-    # Calculate padding for alignment in monospace font
+    # Проверяем, не идёт ли уже генерация
+    if game_state.is_generating_question:
+        await context.bot.send_message(chat_id, "⏳ Вопрос уже генерируется, подождите...")
+        return
+    # Используем preloaded_question, если он есть
+    if game_state.preloaded_question:
+        question = game_state.preloaded_question
+        game_state.preloaded_question = None
+    else:
+        # Генерируем вопрос синхронно, если preload не сработал
+        from src.utils.question_types import get_random_question_type
+        question_type = get_random_question_type(settings.theme)
+        question_data = await integration_helper.generate_enhanced_questions(
+            theme=settings.theme,
+            round_num=game_state.current_round,
+            chat_id=chat_id,
+            get_difficulty=lambda cid: settings.difficulty.value,
+            get_questions_per_round=lambda cid: 1
+        )
+        if not question_data or not isinstance(question_data, list) or not question_data[0].get('question'):
+            await context.bot.send_message(chat_id, "❌ Не удалось сгенерировать вопрос. Попробуйте позже.")
+            return
+        question = Question.from_dict(question_data[0])
+    game_state.current_question = question
+    game_state.question_history[game_state.question_index] = question
+    # Формируем текст вопроса
     left_part = f'❓ Вопрос {game_state.question_index + 1}'
     right_part = f'⏰ {settings.time_per_question} сек'
-    # Use fixed width for consistent alignment (total width ~40 chars)
     total_width = 40
     padding_needed = total_width - len(left_part) - len(right_part)
-    padding = ' ' * max(1, padding_needed)  # At least 1 space
-    
+    padding = ' ' * max(1, padding_needed)
     question_text = (
         f'`{left_part}{padding}{right_part}`\n\n'
-        f'{current_question.question}\n\n'
+        f'{question.question}\n\n'
         f'💬 Как ответить: reply на это сообщение'
     )
-    
-    try:
-        msg = await context.bot.send_message(chat_id, question_text)
-        
-        # Store message ID for reply detection
-        game_state.service_messages.append(MessageID(msg.message_id))
-        question_id = game_state.start_question(current_question)
-        # Store question message ID for reply detection
-        game_state.current_question_message_id = msg.message_id
-        
-        # Debug logging
-        if config.DEBUG_MODE:
-            import logging
-            logging.info(f"🐛 DEBUG: Started question {game_state.question_index + 1}, ID: {question_id}, timeout: {settings.time_per_question}s")
-        
-        # Schedule timeout (only if job_queue is available)
-        if context.job_queue:
-            context.job_queue.run_once(
-                question_timeout,
-                settings.time_per_question,
-                chat_id=chat_id,
-                data={'question_id': question_id, 'question_index': game_state.question_index}
-            )
-        else:
-            # Fallback: no timeout, users can answer anytime
-            # Note: Install python-telegram-bot[job-queue] for question timeouts
-            pass
-        
-    except Exception as e:
-        log_error(e, "ask_next_question", chat_id)
-        await context.bot.send_message(
-            chat_id, 
-            "❌ Ошибка при отправке вопроса."
+    msg = await context.bot.send_message(chat_id, question_text)
+    game_state.service_messages.append(MessageID(msg.message_id))
+    question_id = game_state.start_question(question)
+    game_state.current_question_message_id = MessageID(msg.message_id)
+    # Таймер
+    if context.job_queue:
+        context.job_queue.run_once(
+            question_timeout,
+            settings.time_per_question,
+            chat_id=chat_id,
+            data={'question_id': question_id, 'question_index': game_state.question_index}
         )
+    # После показа вопроса — preload следующего
+    asyncio.create_task(preload_next_question(game_state, chat_id))
 
 
 @safe_async_call("question_timeout")
@@ -232,6 +185,8 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
     
     if unanswered_participants:
         for participant in unanswered_participants:
+            if participant.user_id is None:
+                continue
             game_state.add_user_answer(UserID(participant.user_id), participant.username, '', False)
     
     # Notify about timeout and move to next question
@@ -244,13 +199,11 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 @safe_async_call("finish_round")
 async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> None:
-    """Finish the current round and show results"""
+    """Finish the current round and show results (ленивая генерация)"""
     game_state = get_game_state(chat_id)
-    
-    if not game_state.questions or not game_state.settings:
+    if not game_state.question_history or not game_state.settings:
         await context.bot.send_message(chat_id, "❌ Ошибка: данные раунда не найдены.")
         return
-    
     # Save the last question's answers if they haven't been saved yet
     if game_state.current_question_answers and game_state.question_index not in game_state.all_question_answers:
         game_state.all_question_answers[game_state.question_index] = game_state.current_question_answers.copy()
@@ -316,7 +269,7 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
     results = []
     correct_count = 0
     
-    for question_idx, question in enumerate(game_state.questions):
+    for question_idx, question in game_state.question_history.items():
         # Get stored answers for this question
         question_answers = game_state.all_question_answers.get(question_idx, {})
         
@@ -357,8 +310,7 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
     # Check game mode and format results accordingly
     if game_state.settings.mode == GameMode.INDIVIDUAL:
         # Prepare data for individual mode formatter
-        participants = {UserID(participant.user_id): participant.username 
-                       for participant in game_state.participants}
+        participants = {UserID(participant.user_id): participant.username for participant in game_state.participants if participant.user_id is not None}
         
         score_by_user = {}
         fast_bonus_by_user = {}
@@ -366,13 +318,15 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
         
         # Calculate individual scores and prepare explanations
         for participant in game_state.participants:
+            if participant.user_id is None:
+                continue
             user_id = UserID(participant.user_id)
             username = participant.username
             user_correct = 0
             user_fast_bonus = 0
             user_explanations = []
             
-            for question_idx, question in enumerate(game_state.questions):
+            for question_idx, question in game_state.question_history.items():
                 question_answers = game_state.all_question_answers.get(question_idx, {})
                 user_answer_obj = question_answers.get(user_id)
                 
@@ -433,7 +387,7 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
         result_text = format_round_results_team(
             results=results,
             correct=correct_count,
-            total=len(game_state.questions),
+            total=len(game_state.question_history),
             fast_bonus=actual_fast_bonus,
             fast_time=None,
             total_score=actual_score,
@@ -448,7 +402,7 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
             'theme': game_state.settings.theme,
             'difficulty': game_state.settings.difficulty.value,
             'mode': game_state.settings.mode.value,
-            'total_questions': len(game_state.questions),
+            'total_questions': len(game_state.question_history),
             'correct_answers': correct_count,
             'participants_count': len(game_state.participants),
             'fast_bonus_count': actual_fast_bonus if 'actual_fast_bonus' in locals() else 0
