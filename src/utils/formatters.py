@@ -42,7 +42,7 @@ def format_round_results_individual(
             
             if correct_answer:
                 text += f'    Верный ответ: {correct_answer}\n'
-            text += f'    Комментарий: {explanation}\n'
+            text += f'    Комментарий: {explanation or "Без комментария"}\n'
         text += '\n'
     
     return text
@@ -73,11 +73,28 @@ def format_round_results_team(
         correct_answer = result.get('correct_answer') or result.get('reference_answer') or ''
         
         text += f'{status} Вопрос {i}: {result.get("question")}\n'
-        text += f'Ответ: {result.get("answer")}\n'
+        
+        # Format answers nicely
+        answer_text = result.get("answer", "")
+        if answer_text and answer_text != "Нет ответов":
+            # Split by comma and format each answer on new line
+            answers = [answer.strip() for answer in answer_text.split(",") if answer.strip()]
+            if answers:
+                text += f'Ответы участников:\n'
+                for answer in answers:
+                    if ": " in answer:
+                        # Format as "• Name: Answer"
+                        text += f'  • {answer}\n'
+                    else:
+                        text += f'  • {answer}\n'
+            else:
+                text += f'Ответы: Нет ответов\n'
+        else:
+            text += f'Ответы: Нет ответов\n'
         
         if correct_answer:
             text += f'Верный ответ: {correct_answer}\n'
-        text += f'Комментарий: {explanation}\n\n'
+        text += f'Комментарий: {explanation or "Без комментария"}\n\n'
     
     total_points = total_score + total_fast_bonus
     text += f'⭐ Промежуточный счёт: {total_score} правильных ответов, '

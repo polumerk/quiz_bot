@@ -7,10 +7,10 @@ from typing import List, Dict, Any
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from ..models.types import ChatID, GameMode, Question, MessageID
+from ..models.types import ChatID, GameMode, Question, MessageID, UserID
 from ..models.game_state import get_game_state
 from ..utils.error_handler import safe_async_call, log_error, OpenAIError
-from ..utils.formatters import format_round_results_team
+from ..utils.formatters import format_round_results_team, format_round_results_individual
 from ..config import config
 import questions
 
@@ -230,7 +230,6 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
     unanswered_participants = game_state.get_unanswered_participants()
     
     if unanswered_participants:
-        from ..models.types import UserID
         for participant in unanswered_participants:
             game_state.add_user_answer(UserID(participant.user_id), participant.username, '', False)
     
@@ -338,7 +337,8 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
         if any_correct:
             correct_count += 1
         
-        # Format combined answers
+        # Format combined answers - keep as comma-separated for now
+        # The formatter will handle the nice display
         combined_answers = ", ".join(answers_text) if answers_text else "Нет ответов"
         
         results.append({
@@ -346,23 +346,86 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
             'answer': combined_answers,
             'correct': any_correct,
             'correct_answer': question.correct_answer,
-            'explanation': question.explanation
+            'explanation': question.explanation or "Без комментария"
         })
     
-    # Calculate actual score from current game state  
-    actual_score = game_state.total_score
-    actual_fast_bonus = game_state.total_fast_bonus
-    
-    # Format results for team mode (reuse existing formatter)
-    result_text = format_round_results_team(
-        results=results,
-        correct=correct_count,
-        total=len(game_state.questions),
-        fast_bonus=actual_fast_bonus,
-        fast_time=None,
-        total_score=actual_score,
-        total_fast_bonus=actual_fast_bonus
-    )
+    # Check game mode and format results accordingly
+    if game_state.settings.mode == GameMode.INDIVIDUAL:
+        # Prepare data for individual mode formatter
+        participants = {UserID(participant.user_id): participant.username 
+                       for participant in game_state.participants}
+        
+        score_by_user = {}
+        fast_bonus_by_user = {}
+        explanations_by_user = {}
+        
+        # Calculate individual scores and prepare explanations
+        for participant in game_state.participants:
+            user_id = UserID(participant.user_id)
+            username = participant.username
+            user_correct = 0
+            user_fast_bonus = 0
+            user_explanations = []
+            
+            for question_idx, question in enumerate(game_state.questions):
+                question_answers = game_state.all_question_answers.get(question_idx, {})
+                user_answer_obj = question_answers.get(user_id)
+                
+                if user_answer_obj:
+                    user_answer = user_answer_obj.answer_text
+                    is_correct = is_answer_correct(user_answer, question.correct_answer) if user_answer else False
+                    
+                    if is_correct:
+                        user_correct += 1
+                        if user_answer_obj.fast_bonus:
+                            user_fast_bonus += 1
+                    
+                    # Format user's answer nicely with status
+                    status_emoji = "✅" if is_correct else "❌"
+                    formatted_answer = f"{status_emoji} {user_answer}" if user_answer else "❌ (нет ответа)"
+                    
+                    user_explanations.append({
+                        'question': question.question,
+                        'answer': formatted_answer,
+                        'correct': is_correct,
+                        'correct_answer': question.correct_answer,
+                        'explanation': question.explanation or "Без комментария"
+                    })
+                else:
+                    # No answer from this user
+                    user_explanations.append({
+                        'question': question.question,
+                        'answer': "❌ (нет ответа)",
+                        'correct': False,
+                        'correct_answer': question.correct_answer,
+                        'explanation': question.explanation or "Без комментария"
+                    })
+            
+            score_by_user[user_id] = user_correct
+            fast_bonus_by_user[user_id] = user_fast_bonus
+            explanations_by_user[user_id] = user_explanations
+        
+        result_text = format_round_results_individual(
+            participants=participants,
+            score_by_user=score_by_user,
+            fast_bonus_by_user=fast_bonus_by_user,
+            explanations_by_user=explanations_by_user,
+            chat_id=chat_id
+        )
+    else:
+        # Team mode - use existing logic
+        actual_score = game_state.total_score
+        actual_fast_bonus = game_state.total_fast_bonus
+        
+        result_text = format_round_results_team(
+            results=results,
+            correct=correct_count,
+            total=len(game_state.questions),
+            fast_bonus=actual_fast_bonus,
+            fast_time=None,
+            total_score=actual_score,
+            total_fast_bonus=actual_fast_bonus
+        )
     
     # Create buttons for next actions
     keyboard = []
