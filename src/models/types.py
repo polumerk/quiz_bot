@@ -4,7 +4,7 @@ Type definitions for Quiz Bot
 
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple, Any, NamedTuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -44,6 +44,10 @@ class Question:
     correct_answer: str
     difficulty: Difficulty
     explanation: str = ""
+    interesting_fact: str = ""  # Новое поле для интересного факта
+    source_type: str = "general"  # Новое поле для типа источника
+    difficulty_level: int = 5  # Новое поле для численной оценки сложности (1-10)
+    tags: List[str] = field(default_factory=list)  # Новое поле для тегов
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility"""
@@ -51,7 +55,11 @@ class Question:
             'question': self.question,
             'correct_answer': self.correct_answer,
             'difficulty': self.difficulty.value,
-            'explanation': self.explanation
+            'explanation': self.explanation,
+            'interesting_fact': self.interesting_fact,
+            'source_type': self.source_type,
+            'difficulty_level': self.difficulty_level,
+            'tags': self.tags
         }
 
     @classmethod
@@ -84,7 +92,11 @@ class Question:
             question=question,
             correct_answer=correct_answer,
             difficulty=difficulty,
-            explanation=data.get('explanation', '')
+            explanation=data.get('explanation', ''),
+            interesting_fact=data.get('interesting_fact', ''),
+            source_type=data.get('source_type', 'general'),
+            difficulty_level=data.get('difficulty_level', 5),
+            tags=data.get('tags', [])
         )
 
 
