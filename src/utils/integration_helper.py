@@ -8,9 +8,18 @@ import asyncio
 # Импортируем новые системы
 try:
     from .enhanced_questions import EnhancedQuestionGenerator
-    from .quality_checker import QualityChecker
-    from .analytics import QuestionAnalytics
-    from .feedback_system import FeedbackSystem
+    try:
+        from .quality_checker import QualityChecker
+    except ImportError:
+        QualityChecker = None
+    try:
+        from .analytics import QuestionAnalytics
+    except ImportError:
+        QuestionAnalytics = None
+    try:
+        from .feedback_system import FeedbackSystem
+    except ImportError:
+        FeedbackSystem = None
 except ImportError:
     # Если модули еще не созданы, используем заглушки
     class EnhancedQuestionGenerator:
@@ -18,31 +27,18 @@ except ImportError:
             pass
         async def generate_questions_with_quality_check(self, *args, **kwargs):
             return [], []
-    
-    class QualityChecker:
-        def check_question_quality(self, question_data):
-            return 7, []
-    
-    class QuestionAnalytics:
-        def track_question_generation(self, questions, settings):
-            pass
-        def get_quality_report(self):
-            return {"error": "Not implemented yet"}
-    
-    class FeedbackSystem:
-        def rate_question(self, question_id, user_id, rating, comment):
-            pass
-        def get_feedback_summary(self):
-            return {"error": "Not implemented yet"}
+    QualityChecker = None
+    QuestionAnalytics = None
+    FeedbackSystem = None
 
 class IntegrationHelper:
     """Помощник для интеграции новых систем в существующий код"""
     
     def __init__(self):
         self.enhanced_generator = EnhancedQuestionGenerator()
-        self.quality_checker = QualityChecker()
-        self.analytics = QuestionAnalytics()
-        self.feedback_system = FeedbackSystem()
+        self.quality_checker = QualityChecker() if QualityChecker else None
+        self.analytics = QuestionAnalytics() if QuestionAnalytics else None
+        self.feedback_system = FeedbackSystem() if FeedbackSystem else None
     
     async def generate_enhanced_questions(
         self, 
@@ -56,8 +52,17 @@ class IntegrationHelper:
         Генерация вопросов с использованием улучшенной системы
         Возвращает только качественные вопросы
         """
+        # Формируем settings для генератора
+        settings = {
+            'theme': theme,
+            'difficulty': get_difficulty(chat_id),
+            'questions_count': get_questions_per_round(chat_id),
+            'round_num': round_num,
+            'chat_id': chat_id
+        }
+        print('[DEBUG] generate_enhanced_questions called', settings)
         quality_questions, rejected_questions = await self.enhanced_generator.generate_questions_with_quality_check(
-            theme, round_num, chat_id, get_difficulty, get_questions_per_round
+            settings
         )
         
         # Логируем статистику
@@ -68,31 +73,45 @@ class IntegrationHelper:
     
     def check_single_question_quality(self, question_data: Dict[str, Any]) -> Tuple[int, List[str]]:
         """Проверить качество одного вопроса"""
-        return self.quality_checker.check_question_quality(question_data)
+        if self.quality_checker:
+            return self.quality_checker.check_question_quality(question_data)
+        return 7, []
     
     def get_quality_analytics(self) -> Dict[str, Any]:
         """Получить аналитику качества вопросов"""
-        return self.analytics.get_quality_report()
+        if self.analytics:
+            return self.analytics.get_quality_report()
+        return {"error": "Not implemented yet"}
     
     def get_feedback_analytics(self) -> Dict[str, Any]:
         """Получить аналитику обратной связи"""
-        return self.feedback_system.get_feedback_summary()
+        if self.feedback_system:
+            return self.feedback_system.get_feedback_summary()
+        return {"error": "Not implemented yet"}
     
     def get_improvement_recommendations(self) -> Dict[str, str]:
         """Получить рекомендации по улучшению"""
-        return self.enhanced_generator.get_recommendations()
+        get_recommendations = getattr(self.enhanced_generator, 'get_recommendations', None)
+        if callable(get_recommendations):
+            result = get_recommendations()
+            if isinstance(result, dict):
+                return dict(result)
+        return {}
     
     def rate_question(self, question_id: str, user_id: int, rating: int, comment: str = ""):
         """Оценить вопрос пользователем"""
-        self.feedback_system.rate_question(question_id, user_id, rating, comment)
+        if self.feedback_system:
+            self.feedback_system.rate_question(question_id, user_id, rating, comment)
     
     def submit_complaint(self, question_id: str, user_id: int, complaint_type: str, description: str):
         """Отправить жалобу на вопрос"""
-        self.feedback_system.submit_complaint(question_id, user_id, complaint_type, description)
+        if self.feedback_system and hasattr(self.feedback_system, 'submit_complaint'):
+            self.feedback_system.submit_complaint(question_id, user_id, complaint_type, description)
     
     def track_game_results(self, game_results: Dict[str, Any]):
         """Отслеживать результаты игры"""
-        self.analytics.track_game_results(game_results)
+        if self.analytics and hasattr(self.analytics, 'track_game_results'):
+            self.analytics.track_game_results(game_results)
     
     def format_enhanced_question_display(self, question: Dict[str, Any]) -> str:
         """Форматировать вопрос для отображения с дополнительной информацией"""
@@ -140,8 +159,8 @@ class IntegrationHelper:
     
     def get_question_statistics(self) -> Dict[str, Any]:
         """Получить статистику по вопросам"""
-        quality_report = self.analytics.get_quality_report()
-        feedback_summary = self.feedback_system.get_feedback_summary()
+        quality_report = self.analytics.get_quality_report() if self.analytics else {"error": "Not implemented yet"}
+        feedback_summary = self.feedback_system.get_feedback_summary() if self.feedback_system else {"error": "Not implemented yet"}
         
         return {
             "quality": quality_report,
@@ -151,8 +170,10 @@ class IntegrationHelper:
     
     def cleanup_old_data(self):
         """Очистить старые данные"""
-        self.analytics.cleanup_old_data()
-        self.feedback_system.cleanup_old_data()
+        if self.analytics and hasattr(self.analytics, 'cleanup_old_data'):
+            self.analytics.cleanup_old_data()
+        if self.feedback_system and hasattr(self.feedback_system, 'cleanup_old_data'):
+            self.feedback_system.cleanup_old_data()
 
 # Глобальный экземпляр для использования в других модулях
 integration_helper = IntegrationHelper()
