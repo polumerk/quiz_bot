@@ -15,6 +15,7 @@ from ..utils.integration_helper import integration_helper
 from ..config import config
 import questions
 import asyncio
+import logging
 
 
 async def preload_next_question(game_state, chat_id):
@@ -28,6 +29,7 @@ async def preload_next_question(game_state, chat_id):
         if not settings:
             return
         question_type = get_random_question_type(settings.theme)
+        logging.info(f"[PRELOAD] Выбран тип вопроса: {question_type} для темы: {settings.theme}")
         question_data = await integration_helper.generate_enhanced_questions(
             theme=settings.theme,
             round_num=game_state.current_round,
@@ -38,9 +40,13 @@ async def preload_next_question(game_state, chat_id):
         if question_data and isinstance(question_data, list) and question_data[0].get('question'):
             question = Question.from_dict(question_data[0])
             game_state.preloaded_question = question
+            logging.info(f"[PRELOAD] Вопрос успешно сгенерирован: {question.question}")
+        else:
+            logging.warning(f"[PRELOAD] Не удалось сгенерировать вопрос для типа: {question_type}")
     except Exception as e:
         from ..utils.error_handler import log_error
         log_error(e, "preload_next_question", chat_id)
+        logging.error(f"[PRELOAD] Ошибка генерации вопроса: {e}")
     finally:
         game_state.is_generating_question = False
 
@@ -81,10 +87,12 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
     if game_state.preloaded_question:
         question = game_state.preloaded_question
         game_state.preloaded_question = None
+        logging.info(f"[ASK] Использован preloaded вопрос: {question.question}")
     else:
         # Генерируем вопрос синхронно, если preload не сработал
         from src.utils.question_types import get_random_question_type
         question_type = get_random_question_type(settings.theme)
+        logging.info(f"[ASK] (SYNC) Выбран тип вопроса: {question_type} для темы: {settings.theme}")
         question_data = await integration_helper.generate_enhanced_questions(
             theme=settings.theme,
             round_num=game_state.current_round,
@@ -93,9 +101,11 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
             get_questions_per_round=lambda cid: 1
         )
         if not question_data or not isinstance(question_data, list) or not question_data[0].get('question'):
+            logging.warning(f"[ASK] (SYNC) Не удалось сгенерировать вопрос для типа: {question_type}")
             await context.bot.send_message(chat_id, "❌ Не удалось сгенерировать вопрос. Попробуйте позже.")
             return
         question = Question.from_dict(question_data[0])
+        logging.info(f"[ASK] (SYNC) Вопрос успешно сгенерирован: {question.question}")
     game_state.current_question = question
     game_state.question_history[game_state.question_index] = question
     # Формируем текст вопроса
@@ -110,17 +120,19 @@ async def ask_next_question(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID)
         f'💬 Как ответить: reply на это сообщение'
     )
     msg = await context.bot.send_message(chat_id, question_text)
-    game_state.service_messages.append(MessageID(msg.message_id))
-    question_id = game_state.start_question(question)
-    game_state.current_question_message_id = MessageID(msg.message_id)
-    # Таймер
-    if context.job_queue:
-        context.job_queue.run_once(
-            question_timeout,
-            settings.time_per_question,
-            chat_id=chat_id,
-            data={'question_id': question_id, 'question_index': game_state.question_index}
-        )
+    if msg.message_id is not None:
+        mid = int(msg.message_id)
+        game_state.service_messages.append(MessageID(mid))
+        question_id = game_state.start_question(question)
+        game_state.current_question_message_id = MessageID(mid)
+        # Таймер
+        if context.job_queue:
+            context.job_queue.run_once(
+                question_timeout,
+                settings.time_per_question,
+                chat_id=chat_id,
+                data={'question_id': question_id, 'question_index': game_state.question_index}
+            )
     # После показа вопроса — preload следующего
     asyncio.create_task(preload_next_question(game_state, chat_id))
 
