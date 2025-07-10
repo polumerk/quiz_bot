@@ -42,7 +42,23 @@ def format_round_results_individual(
             
             if correct_answer:
                 text += f'    Верный ответ: {correct_answer}\n'
+            
+            # Добавляем интересный факт, если есть
+            interesting_fact = result.get('interesting_fact', '')
+            if interesting_fact:
+                text += f'    🎯 {interesting_fact}\n'
+            
             text += f'    Комментарий: {explanation or "Без комментария"}\n'
+            
+            # Добавляем информацию о качестве, если есть
+            difficulty_level = result.get('difficulty_level', 0)
+            if difficulty_level > 0:
+                text += f'    ⭐ Сложность: {difficulty_level}/10\n'
+            
+            # Добавляем теги, если есть
+            tags = result.get('tags', [])
+            if tags:
+                text += f'    🏷️ Теги: {", ".join(tags)}\n'
         text += '\n'
     
     return text
@@ -94,7 +110,25 @@ def format_round_results_team(
         
         if correct_answer:
             text += f'Верный ответ: {correct_answer}\n'
-        text += f'Комментарий: {explanation or "Без комментария"}\n\n'
+        
+        # Добавляем интересный факт, если есть
+        interesting_fact = result.get('interesting_fact', '')
+        if interesting_fact:
+            text += f'🎯 {interesting_fact}\n'
+        
+        text += f'Комментарий: {explanation or "Без комментария"}\n'
+        
+        # Добавляем информацию о качестве, если есть
+        difficulty_level = result.get('difficulty_level', 0)
+        if difficulty_level > 0:
+            text += f'⭐ Сложность: {difficulty_level}/10\n'
+        
+        # Добавляем теги, если есть
+        tags = result.get('tags', [])
+        if tags:
+            text += f'🏷️ Теги: {", ".join(tags)}\n'
+        
+        text += '\n'
     
     total_points = total_score + total_fast_bonus
     text += f'⭐ Промежуточный счёт: {total_score} правильных ответов, '

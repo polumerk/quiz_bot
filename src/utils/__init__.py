@@ -22,6 +22,7 @@ try:
     from .analytics import QuestionAnalytics
     from .feedback_system import FeedbackSystem
     from .enhanced_questions import EnhancedQuestionGenerator
+    from .integration_helper import integration_helper
 except ImportError:
     # Если модули еще не созданы, создаем заглушки
     pass
@@ -46,5 +47,6 @@ __all__ = [
     'get_question_type_prompt',
     'QuestionAnalytics',
     'FeedbackSystem',
-    'EnhancedQuestionGenerator'
+    'EnhancedQuestionGenerator',
+    'integration_helper'
 ]

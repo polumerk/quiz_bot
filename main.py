@@ -24,7 +24,7 @@ from src.config import config
 from src.models.game_state import reset_game_state
 from src.handlers import (
     start_command, next_command, exit_command, stop_command,
-    news_command, stat_command, lang_command, debug_command,
+    news_command, stat_command, lang_command, debug_command, analytics_command,
     mode_callback, difficulty_callback, rounds_callback,
     questions_callback, time_callback, join_callback,
     end_registration_callback, captain_callback, answer_callback,
@@ -59,6 +59,7 @@ def register_handlers(app) -> None:
     app.add_handler(CommandHandler('stat', stat_command))
     app.add_handler(CommandHandler('lang', lang_command))
     app.add_handler(CommandHandler('debug', debug_command))
+    app.add_handler(CommandHandler('analytics', analytics_command))
     
     # UNIFIED SETTINGS HANDLER - MUST BE FIRST to handle unified_ callbacks
     try:

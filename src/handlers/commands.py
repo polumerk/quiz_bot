@@ -179,6 +179,72 @@ async def stat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
 
+@safe_async_call("analytics_command")
+async def analytics_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /analytics command to show question quality analytics"""
+    if not update.effective_chat:
+        return
+        
+    chat_id = ChatID(update.effective_chat.id)
+    
+    try:
+        from ..utils.integration_helper import integration_helper
+        
+        # Get analytics data
+        quality_report = integration_helper.get_quality_analytics()
+        feedback_summary = integration_helper.get_feedback_analytics()
+        recommendations = integration_helper.get_improvement_recommendations()
+        
+        text = "📊 **Аналитика качества вопросов**\n\n"
+        
+        # Quality report
+        if quality_report and "error" not in quality_report:
+            text += "🎯 **Отчет о качестве:**\n"
+            if "total_questions" in quality_report:
+                text += f"• Всего вопросов: {quality_report['total_questions']}\n"
+            if "average_quality" in quality_report:
+                text += f"• Средняя оценка: {quality_report['average_quality']:.1f}/10\n"
+            if "quality_distribution" in quality_report:
+                dist = quality_report['quality_distribution']
+                text += f"• Отличные (9-10): {dist.get('excellent', 0)}\n"
+                text += f"• Хорошие (7-8): {dist.get('good', 0)}\n"
+                text += f"• Средние (5-6): {dist.get('average', 0)}\n"
+                text += f"• Плохие (1-4): {dist.get('poor', 0)}\n"
+            text += "\n"
+        else:
+            text += "🎯 **Отчет о качестве:** Данные пока недоступны\n\n"
+        
+        # Feedback summary
+        if feedback_summary and "error" not in feedback_summary:
+            text += "💬 **Обратная связь:**\n"
+            if "total_ratings" in feedback_summary:
+                text += f"• Всего оценок: {feedback_summary['total_ratings']}\n"
+            if "average_rating" in feedback_summary:
+                text += f"• Средняя оценка: {feedback_summary['average_rating']:.1f}/5\n"
+            if "complaints" in feedback_summary:
+                text += f"• Жалоб: {feedback_summary['complaints']}\n"
+            text += "\n"
+        else:
+            text += "💬 **Обратная связь:** Данные пока недоступны\n\n"
+        
+        # Recommendations
+        if recommendations:
+            text += "💡 **Рекомендации:**\n"
+            for category, recommendation in recommendations.items():
+                text += f"• {category}: {recommendation}\n"
+        else:
+            text += "💡 **Рекомендации:** Пока нет рекомендаций\n"
+        
+        await context.bot.send_message(chat_id, text, parse_mode='Markdown')
+        
+    except Exception as e:
+        log_error(e, "analytics_command", chat_id)
+        await context.bot.send_message(
+            chat_id, 
+            "😕 Ошибка при получении аналитики. Попробуйте позже."
+        )
+
+
 @safe_async_call("debug_command")
 async def debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /debug command to toggle debug mode"""

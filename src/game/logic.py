@@ -11,6 +11,7 @@ from ..models.types import ChatID, GameMode, Question, MessageID, UserID
 from ..models.game_state import get_game_state
 from ..utils.error_handler import safe_async_call, log_error, OpenAIError
 from ..utils.formatters import format_round_results_team, format_round_results_individual
+from ..utils.integration_helper import integration_helper
 from ..config import config
 import questions
 
@@ -33,8 +34,8 @@ async def start_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> No
     await context.bot.send_message(chat_id, "🧠 Генерирую вопросы...")
     
     try:
-        # Generate questions using OpenAI
-        questions_data = await questions.openai_generate_questions(
+        # Generate questions using enhanced generator
+        questions_data = await integration_helper.generate_enhanced_questions(
             theme=settings.theme,
             round_num=game_state.current_round,
             chat_id=chat_id,
@@ -346,7 +347,11 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
             'answer': combined_answers,
             'correct': any_correct,
             'correct_answer': question.correct_answer,
-            'explanation': question.explanation or "Без комментария"
+            'explanation': question.explanation or "Без комментария",
+            'interesting_fact': question.interesting_fact,
+            'source_type': question.source_type,
+            'difficulty_level': question.difficulty_level,
+            'tags': question.tags
         })
     
     # Check game mode and format results accordingly
@@ -389,7 +394,11 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
                         'answer': formatted_answer,
                         'correct': is_correct,
                         'correct_answer': question.correct_answer,
-                        'explanation': question.explanation or "Без комментария"
+                        'explanation': question.explanation or "Без комментария",
+                        'interesting_fact': question.interesting_fact,
+                        'source_type': question.source_type,
+                        'difficulty_level': question.difficulty_level,
+                        'tags': question.tags
                     })
                 else:
                     # No answer from this user
@@ -398,7 +407,11 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
                         'answer': "❌ (нет ответа)",
                         'correct': False,
                         'correct_answer': question.correct_answer,
-                        'explanation': question.explanation or "Без комментария"
+                        'explanation': question.explanation or "Без комментария",
+                        'interesting_fact': question.interesting_fact,
+                        'source_type': question.source_type,
+                        'difficulty_level': question.difficulty_level,
+                        'tags': question.tags
                     })
             
             score_by_user[user_id] = user_correct
@@ -426,6 +439,23 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
             total_score=actual_score,
             total_fast_bonus=actual_fast_bonus
         )
+    
+    # Track game results for analytics
+    try:
+        game_results = {
+            'chat_id': chat_id,
+            'round': game_state.current_round,
+            'theme': game_state.settings.theme,
+            'difficulty': game_state.settings.difficulty.value,
+            'mode': game_state.settings.mode.value,
+            'total_questions': len(game_state.questions),
+            'correct_answers': correct_count,
+            'participants_count': len(game_state.participants),
+            'fast_bonus_count': actual_fast_bonus if 'actual_fast_bonus' in locals() else 0
+        }
+        integration_helper.track_game_results(game_results)
+    except Exception as e:
+        log_error(e, "tracking game results", chat_id)
     
     # Create buttons for next actions
     keyboard = []
