@@ -8,7 +8,7 @@ import traceback
 
 # Импортируем новые системы
 try:
-    from .enhanced_questions import EnhancedQuestionGenerator
+    from .enhanced_question_generator import EnhancedQuestionGenerator
     try:
         from .quality_checker import QualityChecker
     except ImportError:
