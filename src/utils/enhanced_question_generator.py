@@ -89,6 +89,7 @@ class EnhancedQuestionGenerator:
         settings: Dict[str, Any],
         max_attempts: int = 3
     ) -> Tuple[List[Dict], List[Dict]]:
+        print('[DEBUG] generate_questions_with_quality_check called', settings)
         """
         Генерация вопросов с проверкой качества
         Возвращает: (качественные вопросы, отклоненные вопросы)
@@ -161,6 +162,7 @@ class EnhancedQuestionGenerator:
         question_type: QuestionType,
         count: Optional[int] = None
     ) -> List[Dict]:
+        print('[DEBUG] _generate_raw_questions called, key:', self.openai_key)
         """Генерация сырых вопросов через OpenAI"""
         
         if not self.openai_key or not self.openai_key.startswith('sk-'):
