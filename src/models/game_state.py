@@ -57,6 +57,7 @@ class GameState:
     
     # UI state
     service_messages: List[MessageID] = field(default_factory=list)
+    question_history: Dict[int, Question] = field(default_factory=dict)  # История вопросов по индексу
 
     def add_participant(self, user_id: UserID, username: str) -> None:
         """Add a participant to the game"""
@@ -111,6 +112,8 @@ class GameState:
         self.awaiting_answer = False
         self.awaiting_text_answer = False
         self.is_generating_question = False  # Сброс флага генерации
+        if self.current_question is not None:
+            self.question_history[self.question_index] = self.current_question  # Сохраняем в историю
 
     def next_round(self) -> None:
         """Move to next round"""
@@ -128,6 +131,7 @@ class GameState:
         question_id = str(uuid.uuid4())[:8]  # Short unique ID
         
         self.current_question = question
+        self.question_history[self.question_index] = question  # Сохраняем в историю
         self.question_start_time = time.time()
         self.current_question_id = question_id
         self.awaiting_answer = True
@@ -217,6 +221,7 @@ class GameState:
         self.current_question_id = None
         self.current_question_answers.clear()
         self.all_question_answers.clear() # Clear stored answers on reset
+        self.question_history.clear() # Clear question history on reset
         self.service_messages.clear()
 
 
