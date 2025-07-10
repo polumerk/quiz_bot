@@ -36,6 +36,10 @@ async def next_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     chat_id = ChatID(update.effective_chat.id)
     game_state = get_game_state(chat_id)
     
+    if game_state.is_generating_question:
+        await context.bot.send_message(chat_id, "⏳ Генерируется следующий вопрос, подождите...")
+        return
+    
     # Import here to avoid circular imports
     from ..game.logic import start_round
     
