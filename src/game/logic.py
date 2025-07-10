@@ -237,17 +237,6 @@ async def question_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
     # Notify about timeout and move to next question
     await context.bot.send_message(chat_id, "⏰ Время истекло! Переходим к следующему вопросу...")
     
-    # If some people answered, their scores were already added
-    # For those who didn't answer, we already added empty answers with 0 points
-    
-    # Add to answers list for compatibility (use first answer or empty)
-    if game_state.current_question_answers:
-        # Take first answered for compatibility
-        first_answer = list(game_state.current_question_answers.values())[0]
-        game_state.add_answer(first_answer.answer_text)
-    else:
-        game_state.add_answer('')  # No one answered
-    
     # Move to next question
     game_state.next_question()
     await ask_next_question(context, chat_id)
@@ -262,32 +251,92 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
         await context.bot.send_message(chat_id, "❌ Ошибка: данные раунда не найдены.")
         return
     
-    # Prepare results
+    # Save the last question's answers if they haven't been saved yet
+    if game_state.current_question_answers and game_state.question_index not in game_state.all_question_answers:
+        game_state.all_question_answers[game_state.question_index] = game_state.current_question_answers.copy()
+    
+    def normalize_answer(answer: str) -> str:
+        """Normalize answer for comparison"""
+        return answer.lower().strip().replace('ё', 'е').replace('й', 'и')
+    
+    def is_answer_correct(user_answer: str, correct_answer: str) -> bool:
+        """Check if answer is correct with fuzzy matching"""
+        user_norm = normalize_answer(user_answer)
+        correct_norm = normalize_answer(correct_answer)
+        
+        # Exact match
+        if user_norm == correct_norm:
+            return True
+        
+        # Both must be at least 3 characters
+        if len(user_norm) < 3 or len(correct_norm) < 3:
+            return False
+        
+        from difflib import SequenceMatcher
+        similarity = SequenceMatcher(None, user_norm, correct_norm).ratio()
+        
+        # High similarity threshold for very similar words
+        if similarity >= 0.85:
+            return True
+        
+        # Check if one contains the other (for variations like Гренландия/Гринландия)
+        if len(user_norm) >= 3 and len(correct_norm) >= 3:
+            if user_norm in correct_norm or correct_norm in user_norm:
+                # Additional check: must be similar enough (at least 70% match)
+                return similarity >= 0.7
+        
+        return False
+    
+    # Prepare results with correct evaluation using stored answers
     results = []
     correct_count = 0
     
-    for i, (answer, question) in enumerate(zip(game_state.answers, game_state.questions)):
-        is_correct = answer.lower() == question.correct_answer.lower()
-        if is_correct:
+    for question_idx, question in enumerate(game_state.questions):
+        # Get stored answers for this question
+        question_answers = game_state.all_question_answers.get(question_idx, {})
+        
+        # Collect all answers for this question
+        answers_text = []
+        any_correct = False
+        
+        for user_id, answer_obj in question_answers.items():
+            username = answer_obj.username
+            user_answer = answer_obj.answer_text
+            
+            if user_answer:  # Only show non-empty answers
+                # Re-evaluate with improved logic
+                is_correct = is_answer_correct(user_answer, question.correct_answer)
+                if is_correct:
+                    any_correct = True
+                answers_text.append(f"{username}: {user_answer}")
+        
+        if any_correct:
             correct_count += 1
+        
+        # Format combined answers
+        combined_answers = ", ".join(answers_text) if answers_text else "Нет ответов"
         
         results.append({
             'question': question.question,
-            'answer': answer,
-            'correct': is_correct,
+            'answer': combined_answers,
+            'correct': any_correct,
             'correct_answer': question.correct_answer,
             'explanation': question.explanation
         })
     
-    # Format results for team mode
+    # Calculate actual score from current game state  
+    actual_score = game_state.total_score
+    actual_fast_bonus = game_state.total_fast_bonus
+    
+    # Format results for team mode (reuse existing formatter)
     result_text = format_round_results_team(
         results=results,
         correct=correct_count,
         total=len(game_state.questions),
-        fast_bonus=game_state.total_fast_bonus,
+        fast_bonus=actual_fast_bonus,
         fast_time=None,
-        total_score=game_state.total_score,
-        total_fast_bonus=game_state.total_fast_bonus
+        total_score=actual_score,
+        total_fast_bonus=actual_fast_bonus
     )
     
     # Create buttons for next actions

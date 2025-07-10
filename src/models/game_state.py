@@ -29,6 +29,9 @@ class GameState:
     questions: List[Question] = field(default_factory=list)
     answers: List[str] = field(default_factory=list)
     
+    # Store all answers by question index for results display
+    all_question_answers: Dict[int, Dict[UserID, Answer]] = field(default_factory=dict)
+    
     # Scoring
     total_score: int = 0
     total_fast_bonus: int = 0
@@ -95,6 +98,10 @@ class GameState:
 
     def next_question(self) -> None:
         """Move to next question"""
+        # Save current question answers before clearing
+        if self.current_question_answers:
+            self.all_question_answers[self.question_index] = self.current_question_answers.copy()
+        
         self.question_index += 1
         self.current_question = None
         self.question_start_time = None
@@ -109,6 +116,7 @@ class GameState:
         self.question_index = 0
         self.questions.clear()
         self.answers.clear()
+        self.all_question_answers.clear()  # Clear stored answers for new round
 
     def start_question(self, question: Question) -> str:
         """Start a new question and return unique question ID"""
@@ -204,6 +212,7 @@ class GameState:
         self.question_start_time = None
         self.current_question_id = None
         self.current_question_answers.clear()
+        self.all_question_answers.clear() # Clear stored answers on reset
         self.service_messages.clear()
 
 

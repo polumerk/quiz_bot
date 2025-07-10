@@ -123,8 +123,40 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     
     correct_answer = game_state.current_question.correct_answer
     
-    # Check if answer is correct
-    is_correct = user_answer.lower() == correct_answer.lower()
+    def normalize_answer(answer: str) -> str:
+        """Normalize answer for comparison"""
+        return answer.lower().strip().replace('ё', 'е').replace('й', 'и')
+    
+    def is_answer_correct(user_answer: str, correct_answer: str) -> bool:
+        """Check if answer is correct with fuzzy matching"""
+        user_norm = normalize_answer(user_answer)
+        correct_norm = normalize_answer(correct_answer)
+        
+        # Exact match
+        if user_norm == correct_norm:
+            return True
+        
+        # Both must be at least 3 characters
+        if len(user_norm) < 3 or len(correct_norm) < 3:
+            return False
+        
+        from difflib import SequenceMatcher
+        similarity = SequenceMatcher(None, user_norm, correct_norm).ratio()
+        
+        # High similarity threshold for very similar words
+        if similarity >= 0.85:
+            return True
+        
+        # Check if one contains the other (for variations like Гренландия/Гринландия)
+        if len(user_norm) >= 3 and len(correct_norm) >= 3:
+            if user_norm in correct_norm or correct_norm in user_norm:
+                # Additional check: must be similar enough (at least 70% match)
+                return similarity >= 0.7
+        
+        return False
+    
+    # Check if answer is correct using improved logic
+    is_correct = is_answer_correct(user_answer, correct_answer)
     
     # Add user's answer to game state
     game_state.add_user_answer(user_id, username, user_answer, is_correct)
@@ -138,11 +170,6 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
         if stored_answer.fast_bonus:
             game_state.add_fast_bonus(1)
     
-    # Add to answers list for compatibility
-    game_state.add_answer(user_answer)
-    
-    # Confirm answer received without revealing correctness
-    # Different message for team vs individual mode
     # Send confirmation with reply to user's answer message
     if game_state.settings and game_state.settings.mode == GameMode.TEAM:
         await context.bot.send_message(
