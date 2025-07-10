@@ -11,6 +11,7 @@ from typing import Dict, List, Any, Tuple, Optional
 from datetime import datetime
 import logging
 from src.config import config
+import traceback
 
 # Временные заглушки для классов
 class QualityChecker:
@@ -105,6 +106,7 @@ class EnhancedQuestionGenerator:
             print(f'[DEBUG] [generator] raw_questions={raw_questions}')
         except Exception as e:
             print('[DEBUG] [generator] Exception in generate_questions_with_quality_check:', e)
+            traceback.print_exc()
             return [], []
         
         # Проверяем качество и фильтруем
@@ -112,48 +114,67 @@ class EnhancedQuestionGenerator:
         rejected_questions = []
         
         for question_data in raw_questions:
-            score, issues = self.quality_checker.check_question_quality(question_data)
-            
-            # Добавляем оценку качества к данным вопроса
-            question_data['quality_score'] = score
-            question_data['quality_issues'] = issues
-            question_data['question_type'] = question_type.value
-            
-            if score >= 7:  # Принимаем только качественные вопросы
-                quality_questions.append(question_data)
-            else:
-                rejected_questions.append(question_data)
-                # Отслеживаем отклоненные вопросы
-                self.analytics.track_rejected_question(
-                    question_data, 
-                    "; ".join(issues)
-                )
+            try:
+                score, issues = self.quality_checker.check_question_quality(question_data)
+                print(f'[DEBUG] [generator] check_question_quality: score={score}, issues={issues}, data={question_data}')
+                # Добавляем оценку качества к данным вопроса
+                question_data['quality_score'] = score
+                question_data['quality_issues'] = issues
+                question_data['question_type'] = question_type.value
+                
+                if score >= 7:  # Принимаем только качественные вопросы
+                    quality_questions.append(question_data)
+                else:
+                    rejected_questions.append(question_data)
+                    # Отслеживаем отклоненные вопросы
+                    self.analytics.track_rejected_question(
+                        question_data, 
+                        "; ".join(issues)
+                    )
+            except Exception as e:
+                print('[DEBUG] [generator] Exception in quality check:', e)
+                traceback.print_exc()
         
+        print(f'[DEBUG] [generator] quality_questions={quality_questions}')
+        print(f'[DEBUG] [generator] rejected_questions={rejected_questions}')
+
         # Если качественных вопросов недостаточно, пробуем еще раз
         attempts = 0
         while len(quality_questions) < questions_count and attempts < max_attempts:
             attempts += 1
             print(f"[LOG] Попытка {attempts}: сгенерировано {len(quality_questions)} качественных вопросов из {questions_count}")
             
-            additional_questions = await self._generate_raw_questions(
-                settings, question_type, questions_count - len(quality_questions)
-            )
-            
-            for question_data in additional_questions:
-                score, issues = self.quality_checker.check_question_quality(question_data)
-                question_data['quality_score'] = score
-                question_data['quality_issues'] = issues
-                question_data['question_type'] = question_type.value
-                
-                if score >= 7:
-                    quality_questions.append(question_data)
-                else:
-                    rejected_questions.append(question_data)
-                    self.analytics.track_rejected_question(
-                        question_data, 
-                        "; ".join(issues)
-                    )
+            try:
+                additional_questions = await self._generate_raw_questions(
+                    settings, question_type, questions_count - len(quality_questions)
+                )
+                print(f'[DEBUG] [generator] additional_questions={additional_questions}')
+                for question_data in additional_questions:
+                    try:
+                        score, issues = self.quality_checker.check_question_quality(question_data)
+                        print(f'[DEBUG] [generator] check_question_quality (retry): score={score}, issues={issues}, data={question_data}')
+                        question_data['quality_score'] = score
+                        question_data['quality_issues'] = issues
+                        question_data['question_type'] = question_type.value
+                        
+                        if score >= 7:
+                            quality_questions.append(question_data)
+                        else:
+                            rejected_questions.append(question_data)
+                            self.analytics.track_rejected_question(
+                                question_data, 
+                                "; ".join(issues)
+                            )
+                    except Exception as e:
+                        print('[DEBUG] [generator] Exception in additional question generation:', e)
+                        traceback.print_exc()
+            except Exception as e:
+                print('[DEBUG] [generator] Exception in additional question generation:', e)
+                traceback.print_exc()
         
+        print(f'[DEBUG] [generator] FINAL quality_questions={quality_questions}')
+        print(f'[DEBUG] [generator] FINAL rejected_questions={rejected_questions}')
+
         # Отслеживаем статистику
         self.analytics.track_question_generation(quality_questions, settings)
         
@@ -212,6 +233,7 @@ class EnhancedQuestionGenerator:
                 print(f'[DEBUG] OpenAI request headers: {headers}')
             print('[DEBUG] [generator] preparing OpenAI request...')
             try:
+                import aiohttp
                 async with aiohttp.ClientSession() as session:
                     if self.debug:
                         print('[DEBUG] Sending request to OpenAI...')
@@ -286,12 +308,14 @@ class EnhancedQuestionGenerator:
                                         "tags": q.get('tags', []),
                                         "difficulty": q.get('difficulty', difficulty)
                                     }
+                                    print(f'[DEBUG] [generator] enhanced_q: {enhanced_q}')
                                     enhanced_questions.append(enhanced_q)
-                            
+                            print(f'[DEBUG] [generator] enhanced_questions: {enhanced_questions}')
                             return enhanced_questions
                             
                         except Exception as e:
                             print('[LOG] Ошибка парсинга OpenAI:', e)
+                            traceback.print_exc()
                             if self.debug:
                                 print(f'[DEBUG] Content for parsing: {text}')
                             return [{
@@ -306,9 +330,7 @@ class EnhancedQuestionGenerator:
                             
             except Exception as e:
                 print(f'[LOG] Ошибка запроса к OpenAI: {e}')
-                if self.debug:
-                    import traceback
-                    traceback.print_exc()
+                traceback.print_exc()
                 return [{
                     "question": "Ошибка соединения с OpenAI",
                     "answer": "N/A",
@@ -320,6 +342,7 @@ class EnhancedQuestionGenerator:
                 }]
         except Exception as e:
             print('[DEBUG] [generator] Exception in _generate_raw_questions:', e)
+            traceback.print_exc()
             return []
     
     def _build_professional_prompt(self, settings: Dict[str, Any], question_type: QuestionType) -> str:
