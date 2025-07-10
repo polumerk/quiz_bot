@@ -9,6 +9,8 @@ import aiohttp
 import os
 from typing import Dict, List, Any, Tuple, Optional
 from datetime import datetime
+import logging
+from src.config import config
 
 # Временные заглушки для классов
 class QualityChecker:
@@ -80,6 +82,7 @@ class EnhancedQuestionGenerator:
             "Ты профессиональный составитель вопросов для интеллектуальных игр. "
             "Создавай качественные вопросы с образовательной ценностью."
         )
+        self.debug = (os.getenv('LOG_LEVEL', '').upper() == 'DEBUG') or (os.getenv('DEBUG_MODE', '').lower() == 'true') or getattr(config, 'LOG_LEVEL', 'INFO').upper() == 'DEBUG' or getattr(config, 'DEBUG_MODE', False)
     
     async def generate_questions_with_quality_check(
         self, 
@@ -193,14 +196,20 @@ class EnhancedQuestionGenerator:
             "temperature": 0.2
         }
         
+        if self.debug:
+            print(f'[DEBUG] OpenAI request data: {data}')
+            print(f'[DEBUG] OpenAI request headers: {headers}')
         try:
             async with aiohttp.ClientSession() as session:
+                if self.debug:
+                    print('[DEBUG] Sending request to OpenAI...')
                 async with session.post(
                     'https://api.openai.com/v1/chat/completions', 
                     headers=headers, 
                     json=data
                 ) as resp:
-                    
+                    if self.debug:
+                        print(f'[DEBUG] OpenAI response status: {resp.status}')
                     if resp.status != 200:
                         error_text = await resp.text()
                         print(f'[LOG] OpenAI HTTP Error {resp.status}: {error_text}')
@@ -213,9 +222,9 @@ class EnhancedQuestionGenerator:
                             "difficulty_level": 5,
                             "tags": []
                         }]
-                    
                     result = await resp.json()
-                    
+                    if self.debug:
+                        print(f'[DEBUG] OpenAI raw response: {result}')
                     if 'error' in result:
                         print('[LOG] OpenAI API Error:', result['error'])
                         return [{
@@ -227,7 +236,6 @@ class EnhancedQuestionGenerator:
                             "difficulty_level": 5,
                             "tags": []
                         }]
-                    
                     if 'choices' not in result or not result['choices']:
                         print('[LOG] OpenAI response missing choices:', result)
                         return [{
@@ -239,13 +247,16 @@ class EnhancedQuestionGenerator:
                             "difficulty_level": 5,
                             "tags": []
                         }]
-                    
                     text = result['choices'][0]['message']['content']
+                    if self.debug:
+                        print(f'[DEBUG] OpenAI content: {text}')
                     text = re.sub(r'^```json\s*|```$', '', text.strip(), flags=re.MULTILINE)
                     text = text.strip()
                     
                     try:
                         questions = json.loads(text)
+                        if self.debug:
+                            print(f'[DEBUG] Parsed questions: {questions}')
                         if isinstance(questions, dict) and 'questions' in questions:
                             questions = questions['questions']
                         
@@ -269,6 +280,8 @@ class EnhancedQuestionGenerator:
                         
                     except Exception as e:
                         print('[LOG] Ошибка парсинга OpenAI:', e)
+                        if self.debug:
+                            print(f'[DEBUG] Content for parsing: {text}')
                         return [{
                             "question": "Ошибка парсинга вопросов",
                             "answer": "N/A",
@@ -281,6 +294,9 @@ class EnhancedQuestionGenerator:
                         
         except Exception as e:
             print(f'[LOG] Ошибка запроса к OpenAI: {e}')
+            if self.debug:
+                import traceback
+                traceback.print_exc()
             return [{
                 "question": "Ошибка соединения с OpenAI",
                 "answer": "N/A",
