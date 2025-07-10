@@ -42,6 +42,7 @@ class GameState:
     awaiting_text_answer: bool = False
     awaiting_language: bool = False
     is_generating_question: bool = False  # Новый флаг для асинхронной генерации
+    preloaded_question: Optional[Question] = None  # Предзагруженный вопрос для следующего шага
     
     # Current question state
     current_question: Optional[Question] = None
