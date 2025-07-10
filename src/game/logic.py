@@ -260,7 +260,7 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
         return answer.lower().strip().replace('ё', 'е').replace('й', 'и')
     
     def is_answer_correct(user_answer: str, correct_answer: str) -> bool:
-        """Check if answer is correct with fuzzy matching"""
+        """Check if answer is correct with improved fuzzy matching"""
         user_norm = normalize_answer(user_answer)
         correct_norm = normalize_answer(correct_answer)
         
@@ -279,11 +279,36 @@ async def finish_round(context: ContextTypes.DEFAULT_TYPE, chat_id: ChatID) -> N
         if similarity >= 0.85:
             return True
         
-        # Check if one contains the other (for variations like Гренландия/Гринландия)
-        if len(user_norm) >= 3 and len(correct_norm) >= 3:
-            if user_norm in correct_norm or correct_norm in user_norm:
-                # Additional check: must be similar enough (at least 70% match)
-                return similarity >= 0.7
+        # УЛУЧШЕННАЯ ЛОГИКА: проверка содержания слов
+        user_words = user_norm.split()
+        correct_words = correct_norm.split()
+        
+        # Если одно слово содержится в другом полностью
+        if user_norm in correct_norm or correct_norm in user_norm:
+            return True
+        
+        # Проверка пересечения слов
+        if user_words and correct_words:
+            # Если все слова пользователя есть в правильном ответе
+            if all(any(user_word in correct_word or correct_word in user_word 
+                      for correct_word in correct_words) 
+                   for user_word in user_words):
+                return True
+            
+            # Если все слова правильного ответа есть в ответе пользователя
+            if all(any(correct_word in user_word or user_word in correct_word 
+                      for user_word in user_words) 
+                   for correct_word in correct_words):
+                return True
+        
+        # Проверка схожести отдельных слов
+        if user_words and correct_words:
+            for user_word in user_words:
+                for correct_word in correct_words:
+                    if len(user_word) >= 3 and len(correct_word) >= 3:
+                        word_similarity = SequenceMatcher(None, user_word, correct_word).ratio()
+                        if word_similarity >= 0.85:
+                            return True
         
         return False
     
