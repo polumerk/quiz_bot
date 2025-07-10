@@ -48,11 +48,7 @@ class IntegrationHelper:
         get_difficulty, 
         get_questions_per_round
     ) -> List[Dict[str, Any]]:
-        """
-        Генерация вопросов с использованием улучшенной системы
-        Возвращает только качественные вопросы
-        """
-        # Формируем settings для генератора
+        print('[DEBUG] [integration_helper] generate_enhanced_questions: вход')
         settings = {
             'theme': theme,
             'difficulty': get_difficulty(chat_id),
@@ -60,15 +56,18 @@ class IntegrationHelper:
             'round_num': round_num,
             'chat_id': chat_id
         }
-        print('[DEBUG] generate_enhanced_questions called', settings)
-        quality_questions, rejected_questions = await self.enhanced_generator.generate_questions_with_quality_check(
-            settings
-        )
-        
-        # Логируем статистику
+        print('[DEBUG] [integration_helper] settings:', settings)
+        try:
+            print('[DEBUG] [integration_helper] call generate_questions_with_quality_check')
+            quality_questions, rejected_questions = await self.enhanced_generator.generate_questions_with_quality_check(settings)
+            print('[DEBUG] [integration_helper] got quality_questions:', quality_questions)
+            print('[DEBUG] [integration_helper] got rejected_questions:', rejected_questions)
+        except Exception as e:
+            print('[DEBUG] [integration_helper] Exception in generate_questions_with_quality_check:', e)
+            return []
         if rejected_questions:
             print(f"[LOG] Отклонено {len(rejected_questions)} вопросов низкого качества")
-        
+        print('[DEBUG] [integration_helper] return quality_questions:', quality_questions)
         return quality_questions
     
     def check_single_question_quality(self, question_data: Dict[str, Any]) -> Tuple[int, List[str]]:

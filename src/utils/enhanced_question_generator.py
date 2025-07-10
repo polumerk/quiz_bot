@@ -89,20 +89,23 @@ class EnhancedQuestionGenerator:
         settings: Dict[str, Any],
         max_attempts: int = 3
     ) -> Tuple[List[Dict], List[Dict]]:
-        print('[DEBUG] generate_questions_with_quality_check called', settings)
+        print('[DEBUG] [generator] generate_questions_with_quality_check called', settings)
         """
         Генерация вопросов с проверкой качества
         Возвращает: (качественные вопросы, отклоненные вопросы)
         """
-        theme = settings.get('theme', 'general')
-        difficulty = settings.get('difficulty', 'medium')
-        questions_count = settings.get('questions_count', 10)
-        
-        # Определяем тип вопросов
-        question_type = determine_question_type(theme)
-        
-        # Генерируем вопросы
-        raw_questions = await self._generate_raw_questions(settings, question_type)
+        try:
+            theme = settings.get('theme', 'general')
+            difficulty = settings.get('difficulty', 'medium')
+            questions_count = settings.get('questions_count', 10)
+            print(f'[DEBUG] [generator] theme={theme}, difficulty={difficulty}, questions_count={questions_count}')
+            question_type = determine_question_type(theme)
+            print(f'[DEBUG] [generator] question_type={question_type}')
+            raw_questions = await self._generate_raw_questions(settings, question_type)
+            print(f'[DEBUG] [generator] raw_questions={raw_questions}')
+        except Exception as e:
+            print('[DEBUG] [generator] Exception in generate_questions_with_quality_check:', e)
+            return [], []
         
         # Проверяем качество и фильтруем
         quality_questions = []
@@ -162,152 +165,162 @@ class EnhancedQuestionGenerator:
         question_type: QuestionType,
         count: Optional[int] = None
     ) -> List[Dict]:
-        print('[DEBUG] _generate_raw_questions called, key:', self.openai_key)
+        print('[DEBUG] [generator] _generate_raw_questions called, key:', self.openai_key)
         """Генерация сырых вопросов через OpenAI"""
         
-        if not self.openai_key or not self.openai_key.startswith('sk-'):
-            return [{
-                "question": "❌ Неверный OpenAI API ключ",
-                "answer": "N/A",
-                "explanation": "",
-                "interesting_fact": "",
-                "source_type": "general",
-                "difficulty_level": 5,
-                "tags": []
-            }]
-        
-        theme = settings.get('theme', 'general')
-        difficulty = settings.get('difficulty', 'medium')
-        questions_count = count or settings.get('questions_count', 10)
-        
-        # Строим профессиональный промпт
-        prompt = self._build_professional_prompt(settings, question_type)
-        
-        headers = {
-            'Authorization': f'Bearer {self.openai_key}',
-            'Content-Type': 'application/json',
-        }
-        
-        data = {
-            "model": "gpt-4o",
-            "messages": [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": 2048,
-            "temperature": 0.2
-        }
-        
-        if self.debug:
-            print(f'[DEBUG] OpenAI request data: {data}')
-            print(f'[DEBUG] OpenAI request headers: {headers}')
         try:
-            async with aiohttp.ClientSession() as session:
-                if self.debug:
-                    print('[DEBUG] Sending request to OpenAI...')
-                async with session.post(
-                    'https://api.openai.com/v1/chat/completions', 
-                    headers=headers, 
-                    json=data
-                ) as resp:
-                    if self.debug:
-                        print(f'[DEBUG] OpenAI response status: {resp.status}')
-                    if resp.status != 200:
-                        error_text = await resp.text()
-                        print(f'[LOG] OpenAI HTTP Error {resp.status}: {error_text}')
-                        return [{
-                            "question": f"Ошибка OpenAI API (HTTP {resp.status})",
-                            "answer": "N/A",
-                            "explanation": "",
-                            "interesting_fact": "",
-                            "source_type": "general",
-                            "difficulty_level": 5,
-                            "tags": []
-                        }]
-                    result = await resp.json()
-                    if self.debug:
-                        print(f'[DEBUG] OpenAI raw response: {result}')
-                    if 'error' in result:
-                        print('[LOG] OpenAI API Error:', result['error'])
-                        return [{
-                            "question": f"Ошибка OpenAI: {result['error'].get('message', 'Unknown error')}",
-                            "answer": "N/A",
-                            "explanation": "",
-                            "interesting_fact": "",
-                            "source_type": "general",
-                            "difficulty_level": 5,
-                            "tags": []
-                        }]
-                    if 'choices' not in result or not result['choices']:
-                        print('[LOG] OpenAI response missing choices:', result)
-                        return [{
-                            "question": "Ошибка генерации вопросов",
-                            "answer": "N/A",
-                            "explanation": "",
-                            "interesting_fact": "",
-                            "source_type": "general",
-                            "difficulty_level": 5,
-                            "tags": []
-                        }]
-                    text = result['choices'][0]['message']['content']
-                    if self.debug:
-                        print(f'[DEBUG] OpenAI content: {text}')
-                    text = re.sub(r'^```json\s*|```$', '', text.strip(), flags=re.MULTILINE)
-                    text = text.strip()
-                    
-                    try:
-                        questions = json.loads(text)
-                        if self.debug:
-                            print(f'[DEBUG] Parsed questions: {questions}')
-                        if isinstance(questions, dict) and 'questions' in questions:
-                            questions = questions['questions']
-                        
-                        # Убеждаемся, что все вопросы имеют необходимые поля
-                        enhanced_questions = []
-                        for q in questions:
-                            if isinstance(q, dict):
-                                enhanced_q = {
-                                    "question": q.get('question', ''),
-                                    "answer": q.get('answer', q.get('correct_answer', '')),
-                                    "explanation": q.get('explanation', ''),
-                                    "interesting_fact": q.get('interesting_fact', ''),
-                                    "source_type": q.get('source_type', 'general'),
-                                    "difficulty_level": q.get('difficulty_level', 5),
-                                    "tags": q.get('tags', []),
-                                    "difficulty": q.get('difficulty', difficulty)
-                                }
-                                enhanced_questions.append(enhanced_q)
-                        
-                        return enhanced_questions
-                        
-                    except Exception as e:
-                        print('[LOG] Ошибка парсинга OpenAI:', e)
-                        if self.debug:
-                            print(f'[DEBUG] Content for parsing: {text}')
-                        return [{
-                            "question": "Ошибка парсинга вопросов",
-                            "answer": "N/A",
-                            "explanation": "",
-                            "interesting_fact": "",
-                            "source_type": "general",
-                            "difficulty_level": 5,
-                            "tags": []
-                        }]
-                        
-        except Exception as e:
-            print(f'[LOG] Ошибка запроса к OpenAI: {e}')
+            if not self.openai_key or not self.openai_key.startswith('sk-'):
+                print('[DEBUG] [generator] OpenAI key is missing or invalid:', self.openai_key)
+                return [{
+                    "question": "❌ Неверный OpenAI API ключ",
+                    "answer": "N/A",
+                    "explanation": "",
+                    "interesting_fact": "",
+                    "source_type": "general",
+                    "difficulty_level": 5,
+                    "tags": []
+                }]
+            
+            theme = settings.get('theme', 'general')
+            difficulty = settings.get('difficulty', 'medium')
+            questions_count = count or settings.get('questions_count', 10)
+            print(f'[DEBUG] [generator] theme={theme}, difficulty={difficulty}, questions_count={questions_count}')
+            
+            # Строим профессиональный промпт
+            prompt = self._build_professional_prompt(settings, question_type)
+            print(f'[DEBUG] [generator] prompt: {prompt}')
+            
+            headers = {
+                'Authorization': f'Bearer {self.openai_key}',
+                'Content-Type': 'application/json',
+            }
+            print(f'[DEBUG] [generator] headers: {headers}')
+            
+            data = {
+                "model": "gpt-4o",
+                "messages": [
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": 2048,
+                "temperature": 0.2
+            }
+            print(f'[DEBUG] [generator] data: {data}')
+            
             if self.debug:
-                import traceback
-                traceback.print_exc()
-            return [{
-                "question": "Ошибка соединения с OpenAI",
-                "answer": "N/A",
-                "explanation": "",
-                "interesting_fact": "",
-                "source_type": "general",
-                "difficulty_level": 5,
-                "tags": []
-            }]
+                print(f'[DEBUG] OpenAI request data: {data}')
+                print(f'[DEBUG] OpenAI request headers: {headers}')
+            print('[DEBUG] [generator] preparing OpenAI request...')
+            try:
+                async with aiohttp.ClientSession() as session:
+                    if self.debug:
+                        print('[DEBUG] Sending request to OpenAI...')
+                    async with session.post(
+                        'https://api.openai.com/v1/chat/completions', 
+                        headers=headers, 
+                        json=data
+                    ) as resp:
+                        if self.debug:
+                            print(f'[DEBUG] OpenAI response status: {resp.status}')
+                        if resp.status != 200:
+                            error_text = await resp.text()
+                            print(f'[LOG] OpenAI HTTP Error {resp.status}: {error_text}')
+                            return [{
+                                "question": f"Ошибка OpenAI API (HTTP {resp.status})",
+                                "answer": "N/A",
+                                "explanation": "",
+                                "interesting_fact": "",
+                                "source_type": "general",
+                                "difficulty_level": 5,
+                                "tags": []
+                            }]
+                        result = await resp.json()
+                        if self.debug:
+                            print(f'[DEBUG] OpenAI raw response: {result}')
+                        if 'error' in result:
+                            print('[LOG] OpenAI API Error:', result['error'])
+                            return [{
+                                "question": f"Ошибка OpenAI: {result['error'].get('message', 'Unknown error')}",
+                                "answer": "N/A",
+                                "explanation": "",
+                                "interesting_fact": "",
+                                "source_type": "general",
+                                "difficulty_level": 5,
+                                "tags": []
+                            }]
+                        if 'choices' not in result or not result['choices']:
+                            print('[LOG] OpenAI response missing choices:', result)
+                            return [{
+                                "question": "Ошибка генерации вопросов",
+                                "answer": "N/A",
+                                "explanation": "",
+                                "interesting_fact": "",
+                                "source_type": "general",
+                                "difficulty_level": 5,
+                                "tags": []
+                            }]
+                        text = result['choices'][0]['message']['content']
+                        if self.debug:
+                            print(f'[DEBUG] OpenAI content: {text}')
+                        text = re.sub(r'^```json\s*|```$', '', text.strip(), flags=re.MULTILINE)
+                        text = text.strip()
+                        
+                        try:
+                            questions = json.loads(text)
+                            if self.debug:
+                                print(f'[DEBUG] Parsed questions: {questions}')
+                            if isinstance(questions, dict) and 'questions' in questions:
+                                questions = questions['questions']
+                            
+                            # Убеждаемся, что все вопросы имеют необходимые поля
+                            enhanced_questions = []
+                            for q in questions:
+                                if isinstance(q, dict):
+                                    enhanced_q = {
+                                        "question": q.get('question', ''),
+                                        "answer": q.get('answer', q.get('correct_answer', '')),
+                                        "explanation": q.get('explanation', ''),
+                                        "interesting_fact": q.get('interesting_fact', ''),
+                                        "source_type": q.get('source_type', 'general'),
+                                        "difficulty_level": q.get('difficulty_level', 5),
+                                        "tags": q.get('tags', []),
+                                        "difficulty": q.get('difficulty', difficulty)
+                                    }
+                                    enhanced_questions.append(enhanced_q)
+                            
+                            return enhanced_questions
+                            
+                        except Exception as e:
+                            print('[LOG] Ошибка парсинга OpenAI:', e)
+                            if self.debug:
+                                print(f'[DEBUG] Content for parsing: {text}')
+                            return [{
+                                "question": "Ошибка парсинга вопросов",
+                                "answer": "N/A",
+                                "explanation": "",
+                                "interesting_fact": "",
+                                "source_type": "general",
+                                "difficulty_level": 5,
+                                "tags": []
+                            }]
+                            
+            except Exception as e:
+                print(f'[LOG] Ошибка запроса к OpenAI: {e}')
+                if self.debug:
+                    import traceback
+                    traceback.print_exc()
+                return [{
+                    "question": "Ошибка соединения с OpenAI",
+                    "answer": "N/A",
+                    "explanation": "",
+                    "interesting_fact": "",
+                    "source_type": "general",
+                    "difficulty_level": 5,
+                    "tags": []
+                }]
+        except Exception as e:
+            print('[DEBUG] [generator] Exception in _generate_raw_questions:', e)
+            return []
     
     def _build_professional_prompt(self, settings: Dict[str, Any], question_type: QuestionType) -> str:
         """Создать профессиональный промпт по образцу лучших практик"""
