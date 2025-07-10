@@ -4,6 +4,7 @@
 
 from typing import Dict, List, Any, Tuple, Optional
 import asyncio
+import traceback
 
 # Импортируем новые системы
 try:
@@ -64,6 +65,7 @@ class IntegrationHelper:
             print('[DEBUG] [integration_helper] got rejected_questions:', rejected_questions)
         except Exception as e:
             print('[DEBUG] [integration_helper] Exception in generate_questions_with_quality_check:', e)
+            traceback.print_exc()
             return []
         if rejected_questions:
             print(f"[LOG] Отклонено {len(rejected_questions)} вопросов низкого качества")
