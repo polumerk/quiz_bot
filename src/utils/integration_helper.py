@@ -58,6 +58,8 @@ class IntegrationHelper:
             'chat_id': chat_id
         }
         print('[DEBUG] [integration_helper] settings:', settings)
+        print('[DEBUG] [integration_helper] type(enhanced_generator):', type(self.enhanced_generator))
+        print('[DEBUG] [integration_helper] repr(enhanced_generator):', repr(self.enhanced_generator))
         try:
             print('[DEBUG] [integration_helper] call generate_questions_with_quality_check')
             quality_questions, rejected_questions = await self.enhanced_generator.generate_questions_with_quality_check(settings)
