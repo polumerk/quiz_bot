@@ -4,7 +4,7 @@ Type definitions for Quiz Bot
 
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple, Any, NamedTuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -19,18 +19,6 @@ class Difficulty(Enum):
     EASY = "easy"
     MEDIUM = "medium"
     HARD = "hard"
-
-
-class QuestionType(Enum):
-    """Types of intellectual quiz questions"""
-    STANDARD = "standard"              # Обычный вопрос
-    RIDDLE = "riddle"                 # Загадка с подвохом
-    ETYMOLOGY = "etymology"           # Этимологический вопрос
-    HISTORICAL_TWIST = "historical_twist"  # Исторический с поворотом
-    LOGIC_PUZZLE = "logic_puzzle"     # Логическая головоломка
-    CULTURAL_REFERENCE = "cultural_reference"  # Культурная отсылка
-    HIDDEN_CLUE = "hidden_clue"       # Подсказка в тексте
-    UNEXPECTED_ANSWER = "unexpected_answer"  # Неожиданный ответ
 
 
 @dataclass
@@ -56,14 +44,10 @@ class Question:
     correct_answer: str
     difficulty: Difficulty
     explanation: str = ""
-    question_type: QuestionType = QuestionType.STANDARD
-    hints: Optional[List[str]] = None  # Подсказки для сложных вопросов
-    cultural_context: str = ""  # Культурный контекст
-    
-    def __post_init__(self):
-        """Initialize default values"""
-        if self.hints is None:
-            self.hints = []
+    interesting_fact: str = ""  # Новое поле для интересного факта
+    source_type: str = "general"  # Новое поле для типа источника
+    difficulty_level: int = 5  # Новое поле для численной оценки сложности (1-10)
+    tags: List[str] = field(default_factory=list)  # Новое поле для тегов
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for compatibility"""
@@ -72,9 +56,10 @@ class Question:
             'correct_answer': self.correct_answer,
             'difficulty': self.difficulty.value,
             'explanation': self.explanation,
-            'question_type': self.question_type.value,
-            'hints': self.hints,
-            'cultural_context': self.cultural_context
+            'interesting_fact': self.interesting_fact,
+            'source_type': self.source_type,
+            'difficulty_level': self.difficulty_level,
+            'tags': self.tags
         }
 
     @classmethod
@@ -103,21 +88,15 @@ class Question:
         except ValueError:
             difficulty = Difficulty.MEDIUM
         
-        # Parse question type safely
-        question_type_str = data.get('question_type', 'standard')
-        try:
-            question_type = QuestionType(question_type_str)
-        except ValueError:
-            question_type = QuestionType.STANDARD
-        
         return cls(
             question=question,
             correct_answer=correct_answer,
             difficulty=difficulty,
             explanation=data.get('explanation', ''),
-            question_type=question_type,
-            hints=data.get('hints', []),
-            cultural_context=data.get('cultural_context', '')
+            interesting_fact=data.get('interesting_fact', ''),
+            source_type=data.get('source_type', 'general'),
+            difficulty_level=data.get('difficulty_level', 5),
+            tags=data.get('tags', [])
         )
 
 

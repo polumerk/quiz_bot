@@ -15,6 +15,7 @@ __all__ = [
     'stat_command',
     'lang_command',
     'debug_command',
+    'analytics_command',
     'mode_callback',
     'difficulty_callback',
     'rounds_callback',

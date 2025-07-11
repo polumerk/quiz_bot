@@ -24,7 +24,7 @@ from src.config import config
 from src.models.game_state import reset_game_state
 from src.handlers import (
     start_command, next_command, exit_command, stop_command,
-    news_command, stat_command, lang_command, debug_command,
+    news_command, stat_command, lang_command, debug_command, analytics_command,
     mode_callback, difficulty_callback, rounds_callback,
     questions_callback, time_callback, join_callback,
     end_registration_callback, captain_callback, answer_callback,
@@ -59,6 +59,7 @@ def register_handlers(app) -> None:
     app.add_handler(CommandHandler('stat', stat_command))
     app.add_handler(CommandHandler('lang', lang_command))
     app.add_handler(CommandHandler('debug', debug_command))
+    app.add_handler(CommandHandler('analytics', analytics_command))
     
     # UNIFIED SETTINGS HANDLER - MUST BE FIRST to handle unified_ callbacks
     try:
@@ -101,8 +102,8 @@ def register_handlers(app) -> None:
     ))
 
 
-async def setup_webhook(app) -> Optional[tuple]:
-    """Setup webhook for deployment environments with error handling"""
+async def get_webhook_config() -> Optional[tuple[str, str]]:
+    """Get webhook configuration for deployment environments"""
     webhook_url = None
     webhook_path = f"/{config.TELEGRAM_TOKEN}"
     
@@ -123,11 +124,8 @@ async def setup_webhook(app) -> Optional[tuple]:
     
     if webhook_url:
         full_webhook_url = webhook_url + webhook_path
-        logging.info(f"Will use webhook: {full_webhook_url}")
-        
-        # DON'T set webhook manually - let run_webhook() do it with correct URL
-        logging.info("✅ Webhook configuration ready")
-        return webhook_path, full_webhook_url
+        logging.info(f"Webhook URL configured: {full_webhook_url}")
+        return full_webhook_url, webhook_path
     
     logging.info("No webhook configured, will use polling mode")
     return None
@@ -186,66 +184,28 @@ async def run_bot() -> None:
     register_handlers(app)
     logging.info("Handlers registered successfully")
     
-    # Register bot commands (menu in Telegram)
-    logging.info("Registering bot commands...")
-    try:
-        # Commands as tuples (command, description)
-        commands_ru = [
-            ("start", "🎮 Начать новую игру или настроить параметры"),
-            ("next", "⏭️ Перейти к следующему раунду"),
-            ("stat", "📊 Показать статистику игр и игроков"),
-            ("lang", "🌍 Сменить язык интерфейса (русский/английский)"),
-            ("news", "📰 Новости и обновления бота"),
-            ("exit", "👋 Завершить текущую игру"),
-            ("stop", "🛑 Остановить игру"),
-            ("debug", "🐛 Переключить режим отладки")
-        ]
-        
-        commands_en = [
-            ("start", "🎮 Start new game or configure settings"),
-            ("next", "⏭️ Go to next round"),
-            ("stat", "📊 Show game and player statistics"),
-            ("lang", "🌍 Change interface language (Russian/English)"),
-            ("news", "📰 Bot news and updates"),
-            ("exit", "👋 End current game"),
-            ("stop", "🛑 Stop game"),
-            ("debug", "🐛 Toggle debug mode")
-        ]
-        
-        # Register commands for Russian users (default)
-        await app.bot.set_my_commands(commands_ru)
-        logging.info("✅ Bot commands registered for Russian language")
-        
-        # Register commands for English users
-        await app.bot.set_my_commands(commands_en, language_code="en")
-        logging.info("✅ Bot commands registered for English language")
-        
-        # Log registered commands
-        current_commands = await app.bot.get_my_commands()
-        logging.info(f"📋 Registered {len(current_commands)} bot commands")
-        
-    except Exception as e:
-        logging.warning(f"⚠️ Could not register bot commands: {e}")
-        logging.info("Bot will work without command menu")
-    
     # Setup and run
     webhook_config = None
-    if not config.FORCE_POLLING:
-        webhook_config = await setup_webhook(app)
-    else:
-        logging.info("🔄 FORCE_POLLING enabled - skipping webhook setup")
+    deployment_info = config.get_deployment_info()
+    logging.info(f"🚀 Deployment mode: {deployment_info}")
     
-    if webhook_config and not config.FORCE_POLLING:
+    if config.should_use_webhook():
+        webhook_config = await get_webhook_config()
+    else:
+        logging.info("� Polling mode selected - skipping webhook setup")
+    
+    if webhook_config and config.should_use_webhook():
         # Webhook mode
-        webhook_path, full_webhook_url = webhook_config
-        logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{config.WEBHOOK_PORT}")
+        webhook_url, webhook_path = webhook_config
+        webhook_port = config.get_webhook_port()
+        logging.info(f"🌐 Starting webhook server on {config.WEBHOOK_LISTEN}:{webhook_port}")
         try:
-            # Pass the full webhook URL so run_webhook() sets it correctly
+            # Let the library handle webhook setup with the correct URL
             await app.run_webhook(
                 listen=config.WEBHOOK_LISTEN,
-                port=config.WEBHOOK_PORT,
+                port=webhook_port,
                 url_path=webhook_path,
-                webhook_url=full_webhook_url  # This will set the correct URL with token
+                webhook_url=webhook_url
             )
         except Exception as e:
             logging.error(f"❌ Webhook server failed: {e}")

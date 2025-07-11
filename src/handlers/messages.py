@@ -5,11 +5,12 @@ Message handlers for Telegram bot
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from ..models.types import ChatID, UserID
+from ..models.types import ChatID, UserID, GameMode
 from ..models.game_state import get_game_state
 from ..utils.error_handler import safe_async_call, log_error
 # from .callbacks import _send_registration_message  # Not needed anymore
 import lang
+
 
 
 @safe_async_call("theme_message_handler")
@@ -68,10 +69,12 @@ async def theme_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
 @safe_async_call("answer_message_handler")
 async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle answer text message via reply to question"""
-    if not update.message or not update.message.chat:
+    if not update.message or not update.message.chat or not update.message.from_user:
         return
         
     chat_id = ChatID(update.message.chat.id)
+    user_id = UserID(update.message.from_user.id)
+    username = update.message.from_user.first_name or "Unknown"
     game_state = get_game_state(chat_id)
     
     # Check if this is a reply to current question
@@ -85,13 +88,33 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
     if not game_state.awaiting_answer:
         return
     
+    # Check if user is a registered participant
+    participant = game_state.get_participant(user_id)
+    if not participant:
+        await update.message.reply_text("❌ Вы не зарегистрированы для участия в игре!")
+        return
+    
+    # Check if user already answered this question
+    if game_state.has_user_answered(user_id):
+        await update.message.reply_text("❌ Вы уже ответили на этот вопрос!")
+        return
+    
+    # In team mode, only captain can answer
+    if (game_state.settings and 
+        game_state.settings.mode == GameMode.TEAM and 
+        game_state.captain_id and 
+        user_id != game_state.captain_id):
+        captain_participant = game_state.get_participant(game_state.captain_id)
+        captain_name = captain_participant.username if captain_participant else "Капитан"
+        await update.message.reply_text(f"❌ В командном режиме отвечает только капитан ({captain_name})!")
+        return
+    
     # Debug logging
     from ..config import config
     if config.DEBUG_MODE:
         import logging
-        logging.info(f"🐛 DEBUG: Answer received for question ID: {game_state.current_question_id}, index: {game_state.question_index}")
+        logging.info(f"🐛 DEBUG: Answer received from {username} for question ID: {game_state.current_question_id}, index: {game_state.question_index}")
     
-    game_state.awaiting_answer = False
     user_answer = update.message.text.strip()
     
     if not game_state.current_question:
@@ -99,31 +122,118 @@ async def answer_message_handler(update: Update, context: ContextTypes.DEFAULT_T
         return
     
     correct_answer = game_state.current_question.correct_answer
-    question_text = game_state.current_question.question
     
-    # Check if answer is correct
-    is_correct = user_answer.lower() == correct_answer.lower()
+    def normalize_answer(answer: str) -> str:
+        """Normalize answer for comparison"""
+        return answer.lower().strip().replace('ё', 'е').replace('й', 'и')
     
-    # Check for fast bonus
-    answer_time = game_state.calculate_answer_time()
-    fast_bonus = 0
+    def is_answer_correct(user_answer: str, correct_answer: str) -> bool:
+        """Check if answer is correct with improved fuzzy matching"""
+        user_norm = normalize_answer(user_answer)
+        correct_norm = normalize_answer(correct_answer)
+        
+        # Exact match
+        if user_norm == correct_norm:
+            return True
+        
+        # Both must be at least 3 characters
+        if len(user_norm) < 3 or len(correct_norm) < 3:
+            return False
+        
+        from difflib import SequenceMatcher
+        similarity = SequenceMatcher(None, user_norm, correct_norm).ratio()
+        
+        # High similarity threshold for very similar words
+        if similarity >= 0.85:
+            return True
+        
+        # УЛУЧШЕННАЯ ЛОГИКА: проверка содержания слов
+        user_words = user_norm.split()
+        correct_words = correct_norm.split()
+        
+        # Если одно слово содержится в другом полностью
+        if user_norm in correct_norm or correct_norm in user_norm:
+            return True
+        
+        # Проверка пересечения слов
+        if user_words and correct_words:
+            # Если все слова пользователя есть в правильном ответе
+            if all(any(user_word in correct_word or correct_word in user_word 
+                      for correct_word in correct_words) 
+                   for user_word in user_words):
+                return True
+            
+            # Если все слова правильного ответа есть в ответе пользователя
+            if all(any(correct_word in user_word or user_word in correct_word 
+                      for user_word in user_words) 
+                   for correct_word in correct_words):
+                return True
+        
+        # Проверка схожести отдельных слов
+        if user_words and correct_words:
+            for user_word in user_words:
+                for correct_word in correct_words:
+                    if len(user_word) >= 3 and len(correct_word) >= 3:
+                        word_similarity = SequenceMatcher(None, user_word, correct_word).ratio()
+                        if word_similarity >= 0.85:
+                            return True
+        
+        return False
     
-    if is_correct and game_state.is_fast_answer():
-        fast_bonus = 1
-        game_state.add_fast_bonus(1)
+    # Check if answer is correct using improved logic
+    is_correct = is_answer_correct(user_answer, correct_answer)
     
-    # Add results
-    game_state.add_answer(user_answer)
-    game_state.add_score(1 if is_correct else 0)
+    # Add user's answer to game state
+    game_state.add_user_answer(user_id, username, user_answer, is_correct)
     
-    # Format response
-    status = '✅' if is_correct else '❌'
-    bonus_text = f' ⚡ Бонус за быстрый ответ!' if fast_bonus else ''
-    time_text = f' (за {int(answer_time)} сек)' if fast_bonus else ''
+    # Get the stored answer for bonus info
+    stored_answer = game_state.current_question_answers[user_id]
     
-    await update.message.reply_text(
-        f'{status} Ваш ответ: {user_answer}{bonus_text}{time_text}'
-    )
+    # Update global scoring
+    if is_correct:
+        game_state.add_score(1)
+        if stored_answer.fast_bonus:
+            game_state.add_fast_bonus(1)
+    
+    # Send confirmation with reply to user's answer message
+    if game_state.settings and game_state.settings.mode == GameMode.TEAM:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f'📝 Ваш ответ принят: {user_answer}\n'
+                 f'⏳ Переходим к следующему вопросу...',
+            reply_to_message_id=update.message.message_id
+        )
+    else:
+        unanswered_count = len(game_state.get_unanswered_participants())
+        if unanswered_count > 0:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f'📝 Ваш ответ принят: {user_answer}\n'
+                     f'⏳ Ожидаю ответов от {unanswered_count} участников...',
+                reply_to_message_id=update.message.message_id
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f'📝 Ваш ответ принят: {user_answer}\n'
+                     f'⏳ Переходим к следующему вопросу...',
+                reply_to_message_id=update.message.message_id
+            )
+    
+    # Check if we should wait for more answers
+    if game_state.should_wait_for_more_answers():
+        # Still waiting for more participants
+        unanswered = game_state.get_unanswered_participants()
+        if config.DEBUG_MODE:
+            unanswered_names = [p.username for p in unanswered]
+            logging.info(f"🐛 DEBUG: Still waiting for answers from: {unanswered_names}")
+        return
+    
+    # All participants answered (or it's team mode and captain answered)
+    game_state.awaiting_answer = False
+    
+    if config.DEBUG_MODE:
+        logging.info(f"🐛 DEBUG: All participants answered, moving to next question")
     
     # Move to next question
     game_state.next_question()
@@ -151,23 +261,11 @@ async def lang_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Reset the awaiting flag
     game_state.awaiting_language = False
     
-    # Import here to avoid circular imports
-    from telegram import ReplyKeyboardRemove
-    
     if "рус" in text:
         lang.set_language(chat_id, "ru")
-        await update.message.reply_text(
-            "Язык переключён на русский 🇷🇺", 
-            reply_markup=ReplyKeyboardRemove()
-        )
+        await update.message.reply_text("Язык переключён на русский 🇷🇺")
     elif "eng" in text:
         lang.set_language(chat_id, "en")
-        await update.message.reply_text(
-            "Language switched to English 🇬🇧", 
-            reply_markup=ReplyKeyboardRemove()
-        )
+        await update.message.reply_text("Language switched to English 🇬🇧")
     else:
-        await update.message.reply_text(
-            "Неизвестный язык / Unknown language", 
-            reply_markup=ReplyKeyboardRemove()
-        )
+        await update.message.reply_text("Неизвестный язык / Unknown language")

@@ -26,8 +26,11 @@ class GameState:
     # Game progress
     current_round: int = 1
     question_index: int = 0
-    questions: List[Question] = field(default_factory=list)
+    # questions: List[Question] = field(default_factory=list)  # Удалено для ленивой генерации
     answers: List[str] = field(default_factory=list)
+    
+    # Store all answers by question index for results display
+    all_question_answers: Dict[int, Dict[UserID, Answer]] = field(default_factory=dict)
     
     # Scoring
     total_score: int = 0
@@ -38,12 +41,15 @@ class GameState:
     awaiting_answer: bool = False
     awaiting_text_answer: bool = False
     awaiting_language: bool = False
+    is_generating_question: bool = False  # Новый флаг для асинхронной генерации
+    preloaded_question: Optional[Question] = None  # Предзагруженный вопрос для следующего шага
     
     # Current question state
     current_question: Optional[Question] = None
     question_start_time: Optional[float] = None
     current_question_message_id: Optional[MessageID] = None
     current_question_id: Optional[str] = None  # Unique ID for timeout tracking
+    current_question_answers: Dict[UserID, Answer] = field(default_factory=dict)  # Track answers per user
     
     # UI state for unified settings
     settings_message_id: Optional[MessageID] = None
@@ -52,6 +58,7 @@ class GameState:
     
     # UI state
     service_messages: List[MessageID] = field(default_factory=list)
+    question_history: Dict[int, Question] = field(default_factory=dict)  # История вопросов по индексу
 
     def add_participant(self, user_id: UserID, username: str) -> None:
         """Add a participant to the game"""
@@ -94,19 +101,30 @@ class GameState:
 
     def next_question(self) -> None:
         """Move to next question"""
+        # Save current question answers before clearing
+        if self.current_question_answers:
+            self.all_question_answers[self.question_index] = self.current_question_answers.copy()
+        
         self.question_index += 1
         self.current_question = None
         self.question_start_time = None
         self.current_question_id = None
+        self.current_question_answers.clear()  # Clear answers for new question
         self.awaiting_answer = False
         self.awaiting_text_answer = False
+        self.is_generating_question = False  # Сброс флага генерации
+        if self.current_question is not None:
+            self.question_history[self.question_index] = self.current_question  # Сохраняем в историю
 
     def next_round(self) -> None:
         """Move to next round"""
         self.current_round += 1
         self.question_index = 0
-        self.questions.clear()
+        # self.questions.clear()  # Удалено
         self.answers.clear()
+        self.all_question_answers.clear()  # Clear stored answers for new round
+        self.current_question = None
+        self.is_generating_question = False
 
     def start_question(self, question: Question) -> str:
         """Start a new question and return unique question ID"""
@@ -114,6 +132,7 @@ class GameState:
         question_id = str(uuid.uuid4())[:8]  # Short unique ID
         
         self.current_question = question
+        self.question_history[self.question_index] = question  # Сохраняем в историю
         self.question_start_time = time.time()
         self.current_question_id = question_id
         self.awaiting_answer = True
@@ -139,6 +158,49 @@ class GameState:
         """Get total points (score + bonuses)"""
         return self.total_score + self.total_fast_bonus
 
+    def add_user_answer(self, user_id: UserID, username: str, answer_text: str, is_correct: bool) -> None:
+        """Add answer from specific user for current question"""
+        if not self.current_question:
+            return
+        
+        answer_time = self.calculate_answer_time()
+        fast_bonus = is_correct and self.is_fast_answer()
+        
+        answer = Answer(
+            user_id=user_id,
+            username=username,
+            answer_text=answer_text,
+            is_correct=is_correct,
+            time_to_answer=answer_time,
+            fast_bonus=fast_bonus
+        )
+        
+        self.current_question_answers[user_id] = answer
+
+    def has_user_answered(self, user_id: UserID) -> bool:
+        """Check if user has already answered current question"""
+        return user_id in self.current_question_answers
+
+    def get_unanswered_participants(self) -> Set[Participant]:
+        """Get participants who haven't answered current question yet"""
+        answered_users = set(self.current_question_answers.keys())
+        return {p for p in self.participants if p.user_id not in answered_users}
+
+    def all_participants_answered(self) -> bool:
+        """Check if all participants have answered current question"""
+        if not self.participants:
+            return False
+        return len(self.current_question_answers) >= len(self.participants)
+
+    def should_wait_for_more_answers(self) -> bool:
+        """Determine if we should wait for more answers"""
+        # In team mode, only captain answers
+        if self.settings and self.settings.mode == GameMode.TEAM:
+            return len(self.current_question_answers) == 0
+        
+        # In individual mode, wait for all participants
+        return not self.all_participants_answered()
+
     def reset(self) -> None:
         """Reset game state"""
         self.settings = None
@@ -147,7 +209,7 @@ class GameState:
         self.session_admin = None
         self.current_round = 1
         self.question_index = 0
-        self.questions.clear()
+        # self.questions.clear() # Удалено
         self.answers.clear()
         self.total_score = 0
         self.total_fast_bonus = 0
@@ -158,6 +220,9 @@ class GameState:
         self.current_question = None
         self.question_start_time = None
         self.current_question_id = None
+        self.current_question_answers.clear()
+        self.all_question_answers.clear() # Clear stored answers on reset
+        self.question_history.clear() # Clear question history on reset
         self.service_messages.clear()
 
 
@@ -225,16 +290,6 @@ def get_question_index(chat_id: ChatID) -> int:
 def set_question_index(chat_id: ChatID, value: int) -> None:
     """Set question index (backward compatibility)"""
     get_game_state(chat_id).question_index = value
-
-
-def get_questions(chat_id: ChatID) -> List[Question]:
-    """Get questions list (backward compatibility)"""
-    return get_game_state(chat_id).questions
-
-
-def set_questions(chat_id: ChatID, questions: List[Question]) -> None:
-    """Set questions list (backward compatibility)"""
-    get_game_state(chat_id).questions = questions
 
 
 def get_answers(chat_id: ChatID) -> List[str]:
